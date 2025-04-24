@@ -172,3 +172,10 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# DS store (mac os system file that tracks different things about folder system for UI only)
+.DS_Store
+
+# Test-files
+test-generator/src/db-test.py
+config.py
