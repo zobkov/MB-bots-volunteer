@@ -6,7 +6,7 @@ import logging.config
 from aiogram import Bot, Dispatcher, F
 
 # handlers
-from handlers import user_handlers, admin_handlers, other_handlers
+from handlers import admin, other, user
 
 # main menu
 from keyboards.set_menu import set_main_menu
@@ -17,6 +17,11 @@ from config_data.config import Config, load_config
 # logger settings
 from utils.logger.logging_settings import logging_config
 
+# database
+from database.sqlite_model import create_connection
+
+# middleware
+from middleware.registration import RoleAssigmmentMiddleware
 
 logging.config.dictConfig(logging_config)
 
@@ -24,7 +29,6 @@ logger = logging.getLogger(__name__)
 
 
 async def main() -> None:
-    
     config: Config = load_config()
     if config == -1:
         logger.critical("Error reading configuration")
@@ -34,20 +38,24 @@ async def main() -> None:
 
     bot = Bot(token=config.tg_bot.token)
     dp = Dispatcher()
+    dp["conn"] = await create_connection()
 
     logger.info("Initialized bot and dispatcher")
+
+    # Register middleware for all update types
+    dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["conn"]))  
 
     await set_main_menu(bot)
     logger.debug("Set main menu")
 
-    dp.include_router(other_handlers.router)
-    dp.include_router(admin_handlers.router)
-    dp.include_router(user_handlers.router)
     
+    dp.include_router(admin.router)
+    dp.include_router(user.router)
+    dp.include_router(other.router)
+
     logger.info("Registered routers")
     
     await dp.start_polling(bot)
-
 
 
 asyncio.run(main())

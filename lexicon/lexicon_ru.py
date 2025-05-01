@@ -9,5 +9,5 @@ LEXICON_RU: dict[str, str] = {
 LEXICON_COMMANDS_RU: dict[str, str] = {
     '/start': 'Запуск бота',
     '/help': 'Справка',
-    '/command_3': 'command_3 desription'
+    '/change_roles': 'Switch admin<->volunteer'
 }
