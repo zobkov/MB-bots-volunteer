@@ -32,7 +32,7 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
         elif hasattr(event, "from_user"):
             user = event.from_user
         else:
-            logger.debug(f"Unhandled event type: {type(event)}")
+            logger.warining(f"Unhandled event type: {type(event)}")
             return await handler(event, data)
             
         user_id = user.id

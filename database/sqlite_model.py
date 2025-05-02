@@ -1,6 +1,9 @@
-import aiosqlite
+from dataclasses import dataclass
+from datetime import datetime
 from typing import List, Optional
-import datetime
+import aiosqlite
+
+from utils.date_format import datetime_format_str
 
 # Utility functions
 async def create_connection(path: str = 'sqlite.db') -> aiosqlite.Connection:
@@ -16,125 +19,156 @@ async def get_by_filter(conn: aiosqlite.Connection, table_name: str, column_name
     async with conn.execute(query, (value,)) as cursor:
         return await cursor.fetchall()
 
-# Models
+@dataclass
 class User:
+    tg_id: int
+    tg_username: str
+    name: str
+    role: str
+
     @staticmethod
-    async def create(conn: aiosqlite.Connection, tg_id: int, tg_username: str, name: str, role: str):
-        """Insert or update a user with given role."""
+    async def create(conn: aiosqlite.Connection, tg_id: int, tg_username: str, name: str, role: str) -> 'User':
         await conn.execute(
-            '''
-            INSERT OR REPLACE INTO users (tg_id, tg_username, name, role)
-            VALUES (?, ?, ?, ?)
-            ''',
+            'INSERT OR REPLACE INTO users (tg_id, tg_username, name, role) VALUES (?, ?, ?, ?)',
             (tg_id, tg_username, name, role)
         )
         await conn.commit()
+        return User(tg_id=tg_id, tg_username=tg_username, name=name, role=role)
 
     @staticmethod
-    async def get_by_tg_id(conn: aiosqlite.Connection, tg_id: int) -> Optional[tuple]:
-        """Fetch a single user by their Telegram ID."""
-        async with conn.execute(
-            'SELECT * FROM users WHERE tg_id = ?',
-            (tg_id,)
-        ) as cursor:
-            return await cursor.fetchone()
+    async def get_by_tg_id(conn: aiosqlite.Connection, tg_id: int) -> Optional['User']:
+        async with conn.execute('SELECT * FROM users WHERE tg_id = ?', (tg_id,)) as cursor:
+            if row := await cursor.fetchone():
+                return User(tg_id=row[0], tg_username=row[1], name=row[2], role=row[3])
+        return None
 
     @staticmethod
-    async def get_all(conn: aiosqlite.Connection) -> List[tuple]:
-        """Get all users."""
+    async def get_all(conn: aiosqlite.Connection) -> List['User']:
         async with conn.execute('SELECT * FROM users') as cursor:
-            return await cursor.fetchall()
+            rows = await cursor.fetchall()
+            return [User(tg_id=row[0], tg_username=row[1], name=row[2], role=row[3]) for row in rows]
 
-    @staticmethod
-    async def update_role(conn: aiosqlite.Connection, tg_id: int, new_role: str):
-        """Update the role of a user."""
-        await conn.execute(
-            'UPDATE users SET role = ? WHERE tg_id = ?',
-            (new_role, tg_id)
-        )
-        await conn.commit()
-
-    @staticmethod
-    async def exists(conn: aiosqlite.Connection, tg_id: int) -> Optional[str]:
-        """Return the role of a user by their Telegram ID, or None if not exists."""
-        async with conn.execute(
-            'SELECT role FROM users WHERE tg_id = ?',
-            (tg_id,)
-        ) as cursor:
-            row = await cursor.fetchone()
-        return row[0] if row else None
-
+@dataclass
 class Task:
+    task_id: Optional[int]
+    title: str
+    description: str
+    start_ts: datetime
+    end_ts: datetime
+    status: str
+    created_at: datetime
+    updated_at: Optional[datetime] = None
+    completed_at: Optional[datetime] = None
+
     @staticmethod
-    async def create(conn: aiosqlite.Connection, title: str, description: str, start_ts: str, end_ts: str, status: str):
-        """Insert a new task."""
+    async def create(conn: aiosqlite.Connection, title: str, description: str, 
+                    start_ts: str, end_ts: str, status: str) -> 'Task':
+        created_at = datetime.now()
         await conn.execute(
             '''
             INSERT INTO task (title, description, start_ts, end_ts, status, created_at)
             VALUES (?, ?, ?, ?, ?, ?)
             ''',
-            (title, description, start_ts, end_ts, status, datetime.datetime.now().isoformat())
+            (title, description, datetime_format_str(start_ts), datetime_format_str(end_ts), status, datetime_format_str(datetime.now()))
         )
         await conn.commit()
+        
+        # Get the last inserted task
+        async with conn.execute('SELECT last_insert_rowid()') as cursor:
+            task_id = (await cursor.fetchone())[0]
+            
+        return Task(
+            task_id=task_id,
+            title=title,
+            description=description,
+            start_ts=datetime.strptime(start_ts, "%Y-%m-%d %H:%M"),
+            end_ts=datetime.strptime(end_ts, "%Y-%m-%d %H:%M"),
+            status=status,
+            created_at=created_at
+        )
 
     @staticmethod
-    async def get_all(conn: aiosqlite.Connection) -> List[tuple]:
-        """Get all tasks."""
+    async def get_all(conn: aiosqlite.Connection) -> List['Task']:
         async with conn.execute('SELECT * FROM task') as cursor:
-            return await cursor.fetchall()
+            rows = await cursor.fetchall()
+            return [
+                Task(
+                    task_id=row[0],
+                    title=row[1],
+                    description=row[2],
+                    start_ts=datetime.fromisoformat(row[3]),
+                    end_ts=datetime.fromisoformat(row[4]),
+                    status=row[5],
+                    created_at=datetime.fromisoformat(row[6]),
+                    updated_at=datetime.fromisoformat(row[7]) if row[7] else None,
+                    completed_at=datetime.fromisoformat(row[8]) if row[8] else None
+                ) for row in rows
+            ]
 
-    @staticmethod
-    async def get_by_status(conn: aiosqlite.Connection, status: str) -> List[tuple]:
-        """Get tasks filtered by status."""
-        async with conn.execute(
-            'SELECT * FROM task WHERE status = ?',
-            (status,)
-        ) as cursor:
-            return await cursor.fetchall()
-
+@dataclass
 class Assignment:
+    assign_id: Optional[int]
+    task_id: int
+    tg_id: int
+    assigned_by: int
+    assigned_at: datetime
+    status: str
+
     @staticmethod
-    async def create(conn: aiosqlite.Connection, task_id: int, tg_id: int, assigned_by: int, assigned_at: str, status: str):
-        """Assign a task to a user."""
+    async def create(conn: aiosqlite.Connection, task_id: int, tg_id: int, 
+                    assigned_by: int, status: str) -> 'Assignment':
+        assigned_at = datetime.now()
         await conn.execute(
             '''
             INSERT INTO assignment (task_id, tg_id, assigned_by, assigned_at, status)
             VALUES (?, ?, ?, ?, ?)
             ''',
-            (task_id, tg_id, assigned_by, assigned_at, status)
+            (task_id, tg_id, assigned_by, assigned_at.isoformat(sep=" "), status)
         )
         await conn.commit()
 
-    @staticmethod
-    async def get_all(conn: aiosqlite.Connection) -> List[tuple]:
-        """Get all assignments."""
-        async with conn.execute('SELECT * FROM assignment') as cursor:
-            return await cursor.fetchall()
+        async with conn.execute('SELECT last_insert_rowid()') as cursor:
+            assign_id = (await cursor.fetchone())[0]
 
-    @staticmethod
-    async def get_by_user(conn: aiosqlite.Connection, tg_id: int) -> List[tuple]:
-        """Get all assignments for a specific user."""
-        async with conn.execute(
-            'SELECT * FROM assignment WHERE tg_id = ?',
-            (tg_id,)
-        ) as cursor:
-            return await cursor.fetchall()
+        return Assignment(
+            assign_id=assign_id,
+            task_id=task_id,
+            tg_id=tg_id,
+            assigned_by=assigned_by,
+            assigned_at=assigned_at,
+            status=status
+        )
 
+@dataclass
 class AuditLog:
+    log_id: Optional[int]
+    table_name: str
+    operation: str
+    record_id: Optional[int]
+    timestamp: datetime
+    details: str
+
     @staticmethod
-    async def log(conn: aiosqlite.Connection, table_name: str, operation: str, record_id: Optional[int], details: str):
-        """Insert a record into the audit log."""
+    async def log(conn: aiosqlite.Connection, table_name: str, operation: str, 
+                 record_id: Optional[int], details: str) -> 'AuditLog':
+        timestamp = datetime.now()
         await conn.execute(
             '''
             INSERT INTO audit_log (table_name, operation, record_id, timestamp, details)
             VALUES (?, ?, ?, ?, ?)
             ''',
-            (table_name, operation, record_id, datetime.datetime.now().isoformat(), details)
+            (table_name, operation, record_id, timestamp.isoformat(), details)
         )
         await conn.commit()
 
-    @staticmethod
-    async def get_all(conn: aiosqlite.Connection) -> List[tuple]:
-        """Get all audit log entries."""
-        async with conn.execute('SELECT * FROM audit_log') as cursor:
-            return await cursor.fetchall()
+        async with conn.execute('SELECT last_insert_rowid()') as cursor:
+            log_id = (await cursor.fetchone())[0]
+
+        return AuditLog(
+            log_id=log_id,
+            table_name=table_name,
+            operation=operation,
+            record_id=record_id,
+            timestamp=timestamp,
+            details=details
+        )
