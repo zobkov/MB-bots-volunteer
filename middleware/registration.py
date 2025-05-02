@@ -25,14 +25,16 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
         logger.debug(f"Middleware called with event type: {type(event)}")
         
         # Handle different event types
-        if hasattr(event, "message"):
+        user = None
+        if hasattr(event, "message") and event.message:
             user = event.message.from_user
-        elif hasattr(event, "callback_query"):
+        elif hasattr(event, "callback_query") and event.callback_query:
             user = event.callback_query.from_user
         elif hasattr(event, "from_user"):
             user = event.from_user
-        else:
-            logger.warining(f"Unhandled event type: {type(event)}")
+            
+        if not user:
+            logger.warning(f"Could not extract user from event type: {type(event)}")
             return await handler(event, data)
             
         user_id = user.id
@@ -46,16 +48,15 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
             return await handler(event, data)
         
         # If not in cache, query database
-        role = await User.exists(self.conn, user_id)
-        if role is None:
+        user_data = await User.get_by_tg_id(self.conn, user_id)
+        if not user_data:
             logger.warning(f"Unauthorized access attempt from user {user_id}")
             return None
             
         # Store in cache and data
-        self.role_cache[user_id] = role
-        data["role"] = role
+        self.role_cache[user_id] = user_data.role
+        data["role"] = user_data.role
         data["middleware"] = self
-        logger.debug(f"Role assigned and cached for user {user_id}: {role}")
-        data["main_outer_middleware"] = self
+        logger.debug(f"Role assigned and cached for user {user_id}: {user_data.role}")
         
         return await handler(event, data)

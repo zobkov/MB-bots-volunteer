@@ -112,18 +112,22 @@ class Assignment:
     tg_id: int
     assigned_by: int
     assigned_at: datetime
+    start_ts: datetime
+    end_ts: datetime
     status: str
 
     @staticmethod
     async def create(conn: aiosqlite.Connection, task_id: int, tg_id: int, 
-                    assigned_by: int, status: str) -> 'Assignment':
-        assigned_at = datetime.now()
+                    assigned_by: int, start_ts: str, end_ts: str,
+                    status: str = 'unscheduled') -> 'Assignment':
+        assigned_at = datetime_format_str(datetime.now())
         await conn.execute(
             '''
-            INSERT INTO assignment (task_id, tg_id, assigned_by, assigned_at, status)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO assignment (task_id, tg_id, assigned_by, assigned_at, start_ts, end_ts, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
             ''',
-            (task_id, tg_id, assigned_by, assigned_at.isoformat(sep=" "), status)
+            (task_id, tg_id, assigned_by, assigned_at, 
+             datetime_format_str(start_ts), datetime_format_str(end_ts), status)
         )
         await conn.commit()
 
@@ -136,8 +140,44 @@ class Assignment:
             tg_id=tg_id,
             assigned_by=assigned_by,
             assigned_at=assigned_at,
+            start_ts=datetime.strptime(start_ts, "%Y-%m-%d %H:%M"),
+            end_ts=datetime.strptime(end_ts, "%Y-%m-%d %H:%M"),
             status=status
         )
+
+    @staticmethod
+    async def get_all(conn: aiosqlite.Connection) -> List['Assignment']:
+        async with conn.execute('SELECT * FROM assignment') as cursor:
+            rows = await cursor.fetchall()
+            return [
+                Assignment(
+                    assign_id=row[0],
+                    task_id=row[1],
+                    tg_id=row[2],
+                    assigned_by=row[3],
+                    assigned_at=datetime.fromisoformat(row[4]),
+                    start_ts=datetime.fromisoformat(row[5]),
+                    end_ts=datetime.fromisoformat(row[6]),
+                    status=row[7]
+                ) for row in rows
+            ]
+
+    @staticmethod
+    async def get_by_tg_id(conn: aiosqlite.Connection, tg_id: int) -> List['Assignment']:
+        async with conn.execute('SELECT * FROM assignment WHERE tg_id = ?', (tg_id,)) as cursor:
+            rows = await cursor.fetchall()
+            return [
+                Assignment(
+                    assign_id=row[0],
+                    task_id=row[1],
+                    tg_id=row[2],
+                    assigned_by=row[3],
+                    assigned_at=datetime.fromisoformat(row[4]),
+                    start_ts=datetime.fromisoformat(row[5]),
+                    end_ts=datetime.fromisoformat(row[6]),
+                    status=row[7]
+                ) for row in rows
+            ]
 
 @dataclass
 class AuditLog:

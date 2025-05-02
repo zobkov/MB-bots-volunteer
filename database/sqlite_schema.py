@@ -37,6 +37,8 @@ async def create_database(path: str = 'sqlite.db'):
                 tg_id        INTEGER NOT NULL,      -- волонтёр
                 assigned_by  INTEGER NOT NULL,      -- админ
                 assigned_at  TEXT    NOT NULL,
+                start_ts     TEXT    NOT NULL,
+                end_ts       TEXT    NOT NULL,
                 status       TEXT    NOT NULL,
                 FOREIGN KEY(task_id)     REFERENCES task(task_id),
                 FOREIGN KEY(tg_id)       REFERENCES users(tg_id),
