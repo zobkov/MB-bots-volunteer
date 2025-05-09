@@ -1,82 +1,117 @@
 import logging
 
+from datetime import datetime
+
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
+from database.sqlite_model import Task
+
 from lexicon.lexicon_ru import LEXICON_RU 
 
-from database.sqlite_model import User
+from handlers.callbacks import NavigationCD, TaskActionCD
+from keyboards.admin import get_menu_markup
 
-from keyboards.admin import keyboard_main_menu, keyboard_assignment_list, keyboard_task_list
+from database.sqlite_model import User
 
 from filters.roles import IsAdmin
 
 logger = logging.getLogger(__name__)
 
-# Use this:
 router = Router()
-# Apply IsAdmin filter to all message handlers
 router.message.filter(IsAdmin())
-# Add filter for callback queries as well
 router.callback_query.filter(IsAdmin())
 
-# Then define your handlers
 @router.message(CommandStart())
-async def admin_handler(message: Message):
-    await message.reply("Hello, fellow admin! Welcome to this bot")
+async def proccess_start(message: Message):
     await message.answer(
-        text = LEXICON_RU["main_menu"],
-        reply_markup=keyboard_main_menu
-        )
+        text=LEXICON_RU["main"],
+        reply_markup=get_menu_markup("main")
+    )
 
 @router.message(Command(commands=['change_roles']))
-async def admin_handler(message: Message, conn=None, middleware=None, **data):  # Changed from main_outer_middleware to middleware
+async def admin_handler(message: Message, conn=None, middleware=None, **data):
     if conn and middleware:
-        # Update role in database
         await User.update_role(conn, message.from_user.id, "volunteer")
-        
-        # Update cache in middleware
         middleware.role_cache[message.from_user.id] = "volunteer"
-        
-        # Update workflow data
         data["role"] = "volunteer"
         
         logger.info(f"User {message.from_user.username} (id={message.from_user.id}) has switched role to 'volunteer'")
         await message.answer("Role changed to volunteer")
+        await proccess_start(message)
     else:
         logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing connection or middleware")
         await message.answer("Configuration error")
 
+@router.callback_query(NavigationCD.filter(F.path == "main.tasks.list"))
+async def show_tasks_list(call: CallbackQuery, conn):
+    current_time = datetime.now()
+    tasks = await Task.get_all(conn)
+    active_tasks = [task for task in tasks if task.end_ts > current_time]
+    
+    text = "Current Active Tasks:\n\n"
+    for task in active_tasks:
+        text += f"📌 {task.title}\n"
+        text += f"Start: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
+        text += f"End: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n\n"
 
-@router.callback_query(F.data == 'admin-assignment_list')
-async def process_assignment_list(callback: CallbackQuery):
-    await callback.message.edit_text(
-        text=LEXICON_RU['assignment_list'], 
-        reply_markup=keyboard_assignment_list
+    builder = InlineKeyboardBuilder()
+    for task in active_tasks:
+        builder.button(
+            text=f"📋 {task.title}",
+            callback_data=TaskActionCD(action="view", task_id=task.task_id).pack()
+        )
+    
+    builder.button(
+        text="◀️ Back",
+        callback_data=NavigationCD(path="main.tasks").pack()
     )
-    # Add answer to prevent clock icon
-    await callback.answer()
+    
+    builder.adjust(1)
+    await call.message.edit_text(text, reply_markup=builder.as_markup())
 
-@router.callback_query(F.data == 'admin-tasks_list')
-async def process_tasks_list(callback: CallbackQuery):
-    await callback.message.edit_text(
-        text=LEXICON_RU['tasks_list'], 
-        reply_markup=keyboard_task_list
-    )
-    await callback.answer()
+@router.callback_query(TaskActionCD.filter(F.action == "view"))
+async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, conn):
+    task = await Task.get_by_id(conn, callback_data.task_id)
+    if not task:
+        await call.answer("Task not found!")
+        return
+    
+    text = f"📋 Task Details:\n\n"
+    text += f"Title: {task.title}\n"
+    text += f"Description: {task.description}\n"
+    text += f"Start: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
+    text += f"End: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n"
+    text += f"Status: {task.status}\n"
 
-@router.callback_query(F.data == 'general-main_menu')
-async def process_main_menu(callback: CallbackQuery):
-    await callback.message.edit_text(
-        text=LEXICON_RU['main_menu'], 
-        reply_markup=keyboard_main_menu
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="✏️ Edit",
+        callback_data=TaskActionCD(action="edit", task_id=task.task_id).pack()
     )
-    await callback.answer()
+    builder.button(
+        text="🗑 Delete",
+        callback_data=TaskActionCD(action="delete", task_id=task.task_id).pack()
+    )
+    builder.button(
+        text="📝 Create Assignment",
+        callback_data=TaskActionCD(action="create_assignment", task_id=task.task_id).pack()
+    )
+    builder.button(
+        text="◀️ Back to Tasks",
+        callback_data=NavigationCD(path="main.tasks.list").pack()
+    )
+    
+    builder.adjust(2, 1, 1)
+    await call.message.edit_text(text, reply_markup=builder.as_markup())
 
-@router.callback_query(F.data == 'general-go_back')
-async def process_go_back(callback: CallbackQuery):
-    await callback.message.edit_text(
-        text=LEXICON_RU['main_menu'], 
-        reply_markup=keyboard_main_menu
+@router.callback_query(NavigationCD.filter())
+async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):
+    new_path = callback_data.path
+    await call.message.edit_text(
+        LEXICON_RU[new_path],
+        parse_mode="Markdown",
+        reply_markup=get_menu_markup(new_path)
     )
-    await callback.answer()

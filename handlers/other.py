@@ -16,11 +16,46 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
+@router.message(Command("add_user"))
+async def add_user_handler(message: Message, command: Command, conn = None):
+    if not command.args:
+        logger.warning(f"User {message.from_user.username} has used /add_user incorrectly. Needed 4 arguments")
+        return await message.reply("Использование: /add_user <id> <username> <name> <role>")
+    parts = command.args.split()
+    if len(parts) != 4:
+        logger.warning(f"User {message.from_user.username} has used /add_user incorrectly. Needed 4 arguments")
+        return await message.reply("Нужно указать именно два аргумента: /add_user <id> <username> <name> <role>")
+
+    id, username, name, role = parts  
+
+    if role not in ('volunteer', 'admin'):
+        logger.warning(f"User {message.from_user.username} has used /add_user incorrectly. Incorrect role: {role}")
+        return await message.reply("Invalid role. should be volunteer or admin")
+    
+    if conn == None:
+        logger.error("No connection to the database")
+        return await message.reply("Lost connection to the database")
+
+
+    await message.reply(f"Пользователь {name} @{username} (id={id}) будет добавлен с ролью '{role}'")
+    created_user = await User.create(conn, id, username, name, role)
+    logger.info(f"User (f{created_user.name} {created_user.tg_username} {created_user.role}) has been added to the database by {message.from_user.username} (id={message.from_user.id})")
+
+@router.message(Command("delete_user"))
+async def delete_user_handler(message: Message, command: Command, conn = None, middleware = None):
+    NotImplemented # TODO
+    if not conn or not middleware:
+        return await message.reply("Unexpected error")
+    if not command.args:
+        return await message.reply(f"")
+
+    
+
 @router.message(CommandStart())
 async def process_start_command(message: Message, state: FSMContext, conn):
     logger.debug(f"User {message.from_user.username} (id:{message.from_user.id}) issued /start")
 
-        
+
 
 
 

@@ -6,3 +6,10 @@ class FSMRole(StatesGroup):
     volunteer = State()
     unauth = State()
     superuser = State()
+
+
+class FSMTaskCreation(StatesGroup):
+    title = State()
+    description = State()
+    start_time = State()
+    end_time = State()

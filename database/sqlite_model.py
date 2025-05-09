@@ -48,6 +48,18 @@ class User:
             rows = await cursor.fetchall()
             return [User(tg_id=row[0], tg_username=row[1], name=row[2], role=row[3]) for row in rows]
 
+    @staticmethod
+    async def update_role(conn: aiosqlite.Connection, tg_id: int, new_role: str) -> Optional['User']:
+        """Update a user's role in the database and return the updated User object."""
+        await conn.execute(
+            'UPDATE users SET role = ? WHERE tg_id = ?',
+            (new_role, tg_id)
+        )
+        await conn.commit()
+        
+        # Return the updated user object
+        return await User.get_by_tg_id(conn, tg_id)
+
 @dataclass
 class Task:
     task_id: Optional[int]
@@ -104,6 +116,24 @@ class Task:
                     completed_at=datetime.fromisoformat(row[8]) if row[8] else None
                 ) for row in rows
             ]
+    
+    @staticmethod
+    async def get_by_id(conn: aiosqlite.Connection, task_id: int) -> Optional['Task']:
+        async with conn.execute('SELECT * FROM task WHERE task_id = ?', (task_id,)) as cursor:
+            if row := await cursor.fetchone():
+                return Task(
+                    task_id=row[0],
+                    title=row[1],
+                    description=row[2],
+                    start_ts=datetime.fromisoformat(row[3]),
+                    end_ts=datetime.fromisoformat(row[4]),
+                    status=row[5],
+                    created_at=datetime.fromisoformat(row[6]),
+                    updated_at=datetime.fromisoformat(row[7]) if row[7] else None,
+                    completed_at=datetime.fromisoformat(row[8]) if row[8] else None
+                )
+        return None
+
 
 @dataclass
 class Assignment:

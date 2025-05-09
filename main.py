@@ -6,7 +6,7 @@ import logging.config
 from aiogram import Bot, Dispatcher, F
 
 # handlers
-from handlers import admin, other, user
+from handlers import admin, other, user, task_creation
 
 # main menu
 from keyboards.set_menu import set_main_menu
@@ -26,6 +26,9 @@ from middleware.registration import RoleAssigmmentMiddleware
 logging.config.dictConfig(logging_config)
 
 logger = logging.getLogger(__name__)
+
+
+
 
 
 async def main() -> None:
@@ -49,12 +52,14 @@ async def main() -> None:
     logger.debug("Set main menu")
 
     
+    dp.include_router(task_creation.router)
     dp.include_router(admin.router)
     dp.include_router(user.router)
     dp.include_router(other.router)
 
     logger.info("Registered routers")
     
+    await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
 

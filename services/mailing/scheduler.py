@@ -25,7 +25,7 @@ class Scheduler():
         )
 
         if not closing:
-            return
+            return 
         
         # closing part 
         self.scheduler.add_job(
@@ -36,4 +36,5 @@ class Scheduler():
         )
 
 
-
+class Schedule():
+    pass 

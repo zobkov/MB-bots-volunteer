@@ -21,9 +21,14 @@ logging_config = {
         'level': 'DEBUG'
     },
     'loggers': {
-        'aiogram': {  # Configure the aiogram logger
+        'aiogram': {
             'handlers': ['stdout'],
-            'level': 'DEBUG',
+            'level': 'INFO',  # Keep default level for general aiogram logs
+            'propagate': False
+        },
+        'aiogram.event': {
+            'handlers': ['stdout'],
+            'level': 'DEBUG',  # Set only event handling logs to DEBUG
             'propagate': False
         }
     }

@@ -1,28 +1,31 @@
 from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 from lexicon.lexicon_ru import LEXICON_RU_BUTTONS
 
-from keyboards.buttons_general import go_back, main_menu
+from keyboards.menu_structures import admin_menu_structure as menu_structure
+from handlers.callbacks import NavigationCD
 
 
-assignment_list = InlineKeyboardButton(
-    text=LEXICON_RU_BUTTONS['assignment_list'],
-    callback_data='admin-assignment_list'
-)
 
-task_list = InlineKeyboardButton(
-    text=LEXICON_RU_BUTTONS['task_list'],
-    callback_data='admin-task_list'
-)
 
-keyboard_main_menu = InlineKeyboardMarkup(
-    inline_keyboard=[[assignment_list],
-                     [task_list]]
-)
+def get_menu_markup(path: str) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
 
-keyboard_task_list = InlineKeyboardMarkup(
-inline_keyboard=[[main_menu, go_back]]
-)
+    # Кнопки текущего уровня из словаря
+    for label, subpath in menu_structure.get(path, []):
+        builder.button(
+            text=label,
+            callback_data=NavigationCD(path=subpath).pack()
+        )
 
-keyboard_assignment_list = InlineKeyboardMarkup(
-inline_keyboard=[[main_menu, go_back]]
-)
+    # Кнопка "Назад" к родителю, если он есть
+    if "." in path:
+        parent = path.rsplit(".", 1)[0]
+        builder.button(
+            text=LEXICON_RU_BUTTONS.get("back", "◀️ Назад"),
+            callback_data=NavigationCD(path=parent).pack()
+        )
+
+    # 2 кнопки в ряд (можно настроить)
+    builder.adjust(2)
+    return builder.as_markup()
