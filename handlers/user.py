@@ -10,6 +10,7 @@ from filters.roles import IsVolunteer
 from handlers.callbacks import NavigationCD
 
 from keyboards.user import get_menu_markup
+from keyboards.admin import get_menu_markup as get_admin_menu_markup
 
 from database.sqlite_model import User
 
@@ -21,7 +22,7 @@ router.message.filter(IsVolunteer())
 @router.message(CommandStart())
 async def proccess_start(message: Message):
     await message.answer(
-        text=LEXICON_RU["main"],  # например "Добро пожаловать!"
+        text=LEXICON_RU["main"],
         reply_markup=get_menu_markup("main")
     )
 
@@ -39,7 +40,10 @@ async def role_change_handler(message: Message, conn=None, middleware=None, **da
         
         logger.info(f"User {message.from_user.username} (id={message.from_user.id}) has switched role to 'admin'")
         await message.answer("Role changed to admin")
-        await proccess_start(message)
+        await message.answer(
+            text=LEXICON_RU['main'],
+            reply_markup=get_admin_menu_markup("main")
+        )
     else:
         logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing connection or middleware")
         await message.answer("Configuration error")

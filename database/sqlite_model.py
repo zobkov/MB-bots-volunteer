@@ -134,6 +134,39 @@ class Task:
                 )
         return None
 
+    @staticmethod
+    async def update(conn: aiosqlite.Connection, task_id: int, **kwargs) -> Optional['Task']:
+        """Update task fields and return updated task"""
+        # Build update query dynamically from provided fields
+        update_fields = []
+        values = []
+        for field, value in kwargs.items():
+            if field in ['start_ts', 'end_ts']:
+                value = datetime_format_str(value)
+            update_fields.append(f"{field} = ?")
+            values.append(value)
+        
+        if not update_fields:
+            return None
+            
+        # Add updated_at timestamp
+        update_fields.append("updated_at = ?")
+        values.append(datetime_format_str(datetime.now()))
+        
+        # Complete the parameter list with task_id
+        values.append(task_id)
+        
+        query = f"""
+            UPDATE task 
+            SET {', '.join(update_fields)}
+            WHERE task_id = ?
+        """
+        
+        await conn.execute(query, values)
+        await conn.commit()
+        
+        # Return updated task
+        return await Task.get_by_id(conn, task_id)
 
 @dataclass
 class Assignment:

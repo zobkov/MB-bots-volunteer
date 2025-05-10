@@ -6,13 +6,17 @@ from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.fsm.context import FSMContext
+
+from states.states import FSMTaskEdit
 
 from database.sqlite_model import Task
 
 from lexicon.lexicon_ru import LEXICON_RU 
 
-from handlers.callbacks import NavigationCD, TaskActionCD
+from handlers.callbacks import NavigationCD, TaskActionCD, TaskEditCD, TaskEditConfirmCD
 from keyboards.admin import get_menu_markup
+from keyboards.user import get_menu_markup as user_get_menu_markup
 
 from database.sqlite_model import User
 
@@ -25,14 +29,14 @@ router.message.filter(IsAdmin())
 router.callback_query.filter(IsAdmin())
 
 @router.message(CommandStart())
-async def proccess_start(message: Message):
+async def proccess_start_admin(message: Message):
     await message.answer(
         text=LEXICON_RU["main"],
         reply_markup=get_menu_markup("main")
     )
 
 @router.message(Command(commands=['change_roles']))
-async def admin_handler(message: Message, conn=None, middleware=None, **data):
+async def role_change_admin_handler(message: Message, conn=None, middleware=None, **data):
     if conn and middleware:
         await User.update_role(conn, message.from_user.id, "volunteer")
         middleware.role_cache[message.from_user.id] = "volunteer"
@@ -40,7 +44,10 @@ async def admin_handler(message: Message, conn=None, middleware=None, **data):
         
         logger.info(f"User {message.from_user.username} (id={message.from_user.id}) has switched role to 'volunteer'")
         await message.answer("Role changed to volunteer")
-        await proccess_start(message)
+        await message.answer(
+            text=LEXICON_RU["main"],  
+            reply_markup=user_get_menu_markup("main")
+        )
     else:
         logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing connection or middleware")
         await message.answer("Configuration error")
@@ -71,6 +78,16 @@ async def show_tasks_list(call: CallbackQuery, conn):
     
     builder.adjust(1)
     await call.message.edit_text(text, reply_markup=builder.as_markup())
+
+
+
+@router.callback_query(TaskActionCD.filter(F.action == "delete"))
+async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, conn):
+    NotImplemented # TODO
+
+@router.callback_query(TaskActionCD.filter(F.action == "create_assignment"))
+async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, conn):
+    NotImplemented # TODO
 
 @router.callback_query(TaskActionCD.filter(F.action == "view"))
 async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, conn):

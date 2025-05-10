@@ -14,6 +14,15 @@ class TaskActionCD(CallbackData, prefix="task"):
     action: str
     task_id: Optional[int] = None
 
+class TaskEditCD(CallbackData, prefix="task_edit"):
+    field: str
+    task_id: int
+
+class TaskEditConfirmCD(CallbackData, prefix="task_edit_confirm"):
+    action: str
+    task_id: int
+    field: str
+
 
 
 

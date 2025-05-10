@@ -6,7 +6,7 @@ import logging.config
 from aiogram import Bot, Dispatcher, F
 
 # handlers
-from handlers import admin, other, user, task_creation
+from handlers import admin, other, user, task_creation, task_edit
 
 # main menu
 from keyboards.set_menu import set_main_menu
@@ -51,7 +51,7 @@ async def main() -> None:
     await set_main_menu(bot)
     logger.debug("Set main menu")
 
-    
+    dp.include_router(task_edit.router)
     dp.include_router(task_creation.router)
     dp.include_router(admin.router)
     dp.include_router(user.router)

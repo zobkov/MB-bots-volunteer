@@ -6,7 +6,6 @@ from aiogram.types import Message
 from aiogram.filters import Command, CommandStart
 from aiogram.fsm.context import FSMContext
 
-from states.states import FSMRole
 
 from lexicon.lexicon_ru import LEXICON_RU
 
