@@ -43,7 +43,7 @@ async def role_change_admin_handler(message: Message, conn=None, middleware=None
         data["role"] = "volunteer"
         
         logger.info(f"User {message.from_user.username} (id={message.from_user.id}) has switched role to 'volunteer'")
-        await message.answer("Role changed to volunteer")
+        await message.answer("Роль изменена на волонтера")
         await message.answer(
             text=LEXICON_RU["main"],  
             reply_markup=user_get_menu_markup("main")
@@ -58,11 +58,11 @@ async def show_tasks_list(call: CallbackQuery, conn):
     tasks = await Task.get_all(conn)
     active_tasks = [task for task in tasks if task.end_ts > current_time]
     
-    text = "Current Active Tasks:\n\n"
+    text = "Текущие активные задания:\n\n"
     for task in active_tasks:
         text += f"📌 {task.title}\n"
-        text += f"Start: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
-        text += f"End: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n\n"
+        text += f"Начало: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
+        text += f"Конец: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n\n"
 
     builder = InlineKeyboardBuilder()
     for task in active_tasks:
@@ -72,7 +72,7 @@ async def show_tasks_list(call: CallbackQuery, conn):
         )
     
     builder.button(
-        text="◀️ Back",
+        text="◀️ Назад",
         callback_data=NavigationCD(path="main.tasks").pack()
     )
     
@@ -96,28 +96,28 @@ async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, co
         await call.answer("Task not found!")
         return
     
-    text = f"📋 Task Details:\n\n"
-    text += f"Title: {task.title}\n"
-    text += f"Description: {task.description}\n"
-    text += f"Start: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
-    text += f"End: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n"
-    text += f"Status: {task.status}\n"
+    text = f"📋 Детали задания:\n\n"
+    text += f"Название: {task.title}\n"
+    text += f"Описание: {task.description}\n"
+    text += f"Начало: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
+    text += f"Конец: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n"
+    text += f"Статус: {task.status}\n"
 
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="✏️ Edit",
+        text="✏️ Редактировать",
         callback_data=TaskActionCD(action="edit", task_id=task.task_id).pack()
     )
     builder.button(
-        text="🗑 Delete",
+        text="🗑 Удалить",
         callback_data=TaskActionCD(action="delete", task_id=task.task_id).pack()
     )
     builder.button(
-        text="📝 Create Assignment",
+        text="📝 Создать назначение",
         callback_data=TaskActionCD(action="create_assignment", task_id=task.task_id).pack()
     )
     builder.button(
-        text="◀️ Back to Tasks",
+        text="◀️ Назад",
         callback_data=NavigationCD(path="main.tasks.list").pack()
     )
     

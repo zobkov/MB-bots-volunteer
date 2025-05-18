@@ -17,7 +17,7 @@ from states.states import FSMTaskEdit
 
 from handlers.admin import show_task_details
 
-from lexicon.lexicon_ru import LEXICON_RU
+from lexicon.lexicon_ru import LEXICON_RU, LEXICON_RU_BUTTONS
 
 logger = logging.getLogger(__name__)
 
@@ -34,19 +34,19 @@ async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, conn, stat
         logger.error(f"User {call.from_user.username} (id={call.from_user.id}): Task id={callback_data.task_id} is not found in the DB")
         return
 
-    text = "Select field to edit:\n\n"
-    text += f"Current values:\n"
-    text += f"Title: {task.title}\n"
-    text += f"Description: {task.description}\n"
-    text += f"Start: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
-    text += f"End: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n"
+    text = "Выберите поле для редактирования:\n\n"
+    text += f"Текущие значения:\n"
+    text += f"Название: {task.title}\n"
+    text += f"Описание: {task.description}\n"
+    text += f"Начало: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
+    text += f"Конец: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n"
 
     builder = InlineKeyboardBuilder()
     fields = [
-        ("📝 Title", "title"),
-        ("📋 Description", "description"),
-        ("🕒 Start Time", "start_ts"),
-        ("🕕 End Time", "end_ts")
+        ("📝 Название", "title"),
+        ("📋 Описание", "description"),
+        ("🕒 Начало", "start_ts"),
+        ("🕕 Конец", "end_ts")
     ]
     
     for button_text, field in fields:
@@ -56,7 +56,7 @@ async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, conn, stat
         )
     
     builder.button(
-        text="◀️ Back",
+        text="◀️ Назад",
         callback_data=TaskActionCD(action="view", task_id=task.task_id).pack()
     )
     
@@ -85,22 +85,22 @@ async def process_edit_field(call: CallbackQuery, callback_data: TaskEditCD, sta
     if field in ['start_ts', 'end_ts']:
         builder = InlineKeyboardBuilder()
         builder.button(
-            text="❌ Cancel",
+            text="❌ Отмена",
             callback_data=TaskActionCD(action="view", task_id=task_id).pack()
         )
         builder.adjust(1)
         await call.message.edit_text(
-            f"Select new {field.replace('_ts', '')} date:",
+            f"Выберите новую {field.replace('_ts', '')} дату:",
             reply_markup=get_calendar_keyboard()
         )
     else:
         builder.button(
-            text="❌ Cancel",
+            text="❌ Отмена",
             callback_data=TaskActionCD(action="view", task_id=task_id).pack()
         )
         builder.adjust(1)
         await call.message.edit_text(
-            f"Enter new {field}:",
+            f"Выберите новое {field}:",
             reply_markup=builder.as_markup()
         )
 
@@ -127,21 +127,20 @@ async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext
         if field == 'start_ts' and selected_datetime.date() > current_end.date():
             builder = InlineKeyboardBuilder()
             builder.button(
-                text="📅 Change End Time Instead",
+                text="📅 Поменять конечную дату",
                 callback_data=TaskEditCD(field="end_ts", task_id=data['task_id']).pack()
             )
             builder.button(
-                text="🔄 Select Different Date",
+                text="🔄 Выбрать другую дату",
                 callback_data=TaskEditCD(field="start_ts", task_id=data['task_id']).pack()
             )
             builder.button(
-                text="❌ Cancel",
+                text="❌ Отмена",
                 callback_data=TaskActionCD(action="view", task_id=data['task_id']).pack()
             )
             builder.adjust(1)
             await call.message.edit_text(
-                f"Error: Start date cannot be after end date ({current_end.strftime('%Y-%m-%d')}).\n"
-                f"Please choose:",
+                f"Ошибка: Дата начала не может быть после даты конца ({current_end.strftime('%Y-%m-%d')})",
                 reply_markup=builder.as_markup()
             )
             return
@@ -149,21 +148,20 @@ async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext
         elif field == 'end_ts' and selected_datetime.date() < current_start.date():
             builder = InlineKeyboardBuilder()
             builder.button(
-                text="📅 Change Start Time Instead",
+                text="📅 Изменить начальную дату",
                 callback_data=TaskEditCD(field="start_ts", task_id=data['task_id']).pack()
             )
             builder.button(
-                text="🔄 Select Different Date",
+                text="🔄 Выбрать другую дату",
                 callback_data=TaskEditCD(field="end_ts", task_id=data['task_id']).pack()
             )
             builder.button(
-                text="❌ Cancel",
+                text="❌ Отмена",
                 callback_data=TaskActionCD(action="view", task_id=data['task_id']).pack()
             )
             builder.adjust(1)
             await call.message.edit_text(
-                f"Error: End date cannot be before start date ({current_start.strftime('%Y-%m-%d')}).\n"
-                f"Please choose:",
+                f"Ошибка: Конечная дата не может быть до начальной ({current_start.strftime('%Y-%m-%d')}).",
                 reply_markup=builder.as_markup()
             )
             return
@@ -173,13 +171,13 @@ async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext
         
         builder = InlineKeyboardBuilder()
         builder.button(
-            text="❌ Cancel",
+            text="❌ Отмена",
             callback_data=TaskActionCD(action="view", task_id=data['task_id']).pack()
         )
         builder.adjust(1)
         await call.message.edit_text(
-            f"Selected date: {selected_date}\n"
-            f"Please enter time in format HH:MM (e.g. 09:30):",
+            f"Выбранная дата: {selected_date}\n"
+            f"Укажите время в формате HH:MM (например, 09:30):",
             reply_markup=builder.as_markup()
         )
 
@@ -214,21 +212,20 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
             if field == 'start_ts' and new_datetime >= current_end:
                 builder = InlineKeyboardBuilder()
                 builder.button(
-                    text="📅 Change End Time Instead",
+                    text="📅 Поменять конечное время",
                     callback_data=TaskEditCD(field="end_ts", task_id=task_id).pack()
                 )
                 builder.button(
-                    text="🔄 Select Different Start Time",
+                    text="🔄 Выбрать другое время",
                     callback_data=TaskEditCD(field="start_ts", task_id=task_id).pack()
                 )
                 builder.button(
-                    text="❌ Cancel",
+                    text="❌ Отмена",
                     callback_data=TaskActionCD(action="view", task_id=task_id).pack()
                 )
                 builder.adjust(1)
                 await message.answer(
-                    f"Error: Start time cannot be after end time ({current_end.strftime('%Y-%m-%d %H:%M')}).\n"
-                    f"Please choose:",
+                    f"Ошибка: Время начала не может быть после времени конца ({current_end.strftime('%Y-%m-%d %H:%M')}).",
                     reply_markup=builder.as_markup()
                 )
                 return
@@ -236,21 +233,20 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
             elif field == 'end_ts' and new_datetime <= current_start:
                 builder = InlineKeyboardBuilder()
                 builder.button(
-                    text="📅 Change Start Time Instead",
+                    text="📅 Поменять начальное время",
                     callback_data=TaskEditCD(field="start_ts", task_id=task_id).pack()
                 )
                 builder.button(
-                    text="🔄 Select Different End Time",
+                    text="🔄 Выбрать другое время",
                     callback_data=TaskEditCD(field="end_ts", task_id=task_id).pack()
                 )
                 builder.button(
-                    text="❌ Cancel",
+                    text="❌ Отмена",
                     callback_data=TaskActionCD(action="view", task_id=task_id).pack()
                 )
                 builder.adjust(1)
                 await message.answer(
-                    f"Error: End time cannot be before start time ({current_start.strftime('%Y-%m-%d %H:%M')}).\n"
-                    f"Please choose:",
+                    f"Ошибка: Конечное время не может быть до начального ({current_start.strftime('%Y-%m-%d %H:%M')}).",
                     reply_markup=builder.as_markup()
                 )
                 return
@@ -258,34 +254,34 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
         except ValueError:
             builder = InlineKeyboardBuilder()
             builder.button(
-                text="📅 Select from Calendar",
+                text="📅 Выбрать из календаря",
                 callback_data=TaskEditCD(field=field, task_id=task_id).pack()
             )
             builder.button(
-                text="❌ Cancel",
+                text="❌ Отмена",
                 callback_data=TaskActionCD(action="view", task_id=task_id).pack()
             )
             builder.adjust(1)
             await message.answer(
-                "Invalid time format. Please use HH:MM format (e.g. 09:30) or select from calendar:",
+                "Неправильный формат времени. Используйте формат HH:MM (e.g. 09:30) or select from calendar:",
                 reply_markup=builder.as_markup()
             )
             return
 
     # Confirm the change
-    text = f"Confirm changing {field} to:\n\n{new_value}\n\nDo you want to proceed?"
+    text = f"Подтвердите изменения {field}:\n\n{new_value}"
     
     builder = InlineKeyboardBuilder()
     builder.button(
-        text="✅ Confirm",
+        text="✅ Подтвердить",
         callback_data=TaskEditConfirmCD(action="confirm", task_id=task_id, field=field).pack()
     )
     builder.button(
-        text="❌ Cancel",
+        text="❌ Отмена",
         callback_data=TaskEditConfirmCD(action="cancel", task_id=task_id, field=field).pack()
     )
     builder.button(
-        text="🔄 Enter Different Value",
+        text="🔄 Ввести другое значение",
         callback_data=TaskEditCD(field=field, task_id=task_id).pack()
     )
     
@@ -310,12 +306,12 @@ async def process_edit_confirmation(call: CallbackQuery, callback_data: TaskEdit
     # Update the task
     updated_task = await Task.update(conn, task_id, **{field: new_value})
     if updated_task:
-        await call.message.edit_text(f"{field} updated successfully!")
+        await call.message.edit_text(f"{field} успешно обновлено!")
         logger.info(f"User {call.from_user.username} (id={call.from_user.id}) updated task {task_id} {field}")
         # Return to task view
         await show_task_details(call, TaskActionCD(action="view", task_id=task_id), conn)
     else:
-        await call.message.edit_text("Failed to update task")
+        await call.message.edit_text("Ошибка при внесении изменений на сервере")
         logger.error(f"User {call.from_user.username} (id={call.from_user.id}) failed to update task {task_id} {field}")
 
     await state.clear()
