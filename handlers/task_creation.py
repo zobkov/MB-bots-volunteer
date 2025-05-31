@@ -1,22 +1,18 @@
 import logging
 from datetime import datetime
-
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
-
-from database.sqlite_model import Task
+from database.pg_model import Task
 from keyboards.admin import get_menu_markup
 from keyboards.calendar import get_calendar_keyboard
 from states.states import FSMTaskCreation
 from handlers.callbacks import NavigationCD
 from filters.roles import IsAdmin
-
 from lexicon.lexicon_ru import LEXICON_RU
 
 logger = logging.getLogger(__name__)
 
-# Create router specifically for task creation
 router = Router()
 router.message.filter(IsAdmin())
 router.callback_query.filter(IsAdmin())
@@ -24,7 +20,6 @@ router.callback_query.filter(IsAdmin())
 @router.callback_query(NavigationCD.filter(F.path == "main.tasks.create_task"))
 async def add_task(call: CallbackQuery, state: FSMContext):
     logger.info(f'{call.message.from_user.username} (id={call.message.from_user.id}) has started add_task() handler')
-
     await call.message.edit_text(LEXICON_RU["task_creation.title"])
     await state.set_state(FSMTaskCreation.title)
 
@@ -110,7 +105,7 @@ async def process_time_input(message: Message, state: FSMContext):
         logger.warning(f'{message.from_user.username} (id={message.from_user.id}): Invalid time string')
 
 @router.message(FSMTaskCreation.end_time)
-async def process_end_time_input(message: Message, state: FSMContext, conn):
+async def process_end_time_input(message: Message, state: FSMContext, pool):
     try:
         time = datetime.strptime(message.text, "%H:%M").strftime("%H:%M")
         data = await state.get_data()
@@ -125,33 +120,30 @@ async def process_end_time_input(message: Message, state: FSMContext, conn):
                 f"End time must be after {start_time.strftime('%H:%M')} on {start_time.strftime('%Y-%m-%d')}!\n"
                 f"Please enter a later time for {selected_date}:"
             )
-            logger.warning(f'{message.from_user.username} (id={message.from_user.id}): Invalid date. Should be not before the start date')
             return
             
         task = await Task.create(
-            conn=conn,
+            pool=pool,
             title=data['title'],
             description=data['description'],
-            start_ts=data['start_time'],
-            end_ts=full_datetime,
+            start_ts=data['start_time'],  # This will be converted to datetime in Task.create
+            end_ts=full_datetime,         # This will be converted to datetime in Task.create
             status='Unscheduled'
         )
         
-        # Log task creation with proper task ID
         logger.info(f'{message.from_user.username} (id={message.from_user.id}): Successfully created task id={task.task_id}')
 
         await message.answer(
             f"Task created successfully!\n\n"
             f"Title: {task.title}\n"
             f"Description: {task.description}\n"
-            f"Start: {task.start_ts}\n"
-            f"End: {task.end_ts}\n"
+            f"Start: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
+            f"End: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n"
             f"Status: {task.status}",
             reply_markup=get_menu_markup("main.tasks")
         )
         await state.clear()
         
-    except ValueError:
-        await message.answer(
-            LEXICON_RU['task_creation.invalid_time_format']
-        )
+    except ValueError as e:
+        logger.error(f"Date parsing error: {e}")
+        await message.answer(LEXICON_RU['task_creation.invalid_time_format'])

@@ -1,0 +1,17 @@
+version: '3.8'
+services:
+  db:
+    image: postgres:14
+    container_name: vol_bot_pg_db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"              # прокидываем порт наружу
+    environment:
+      POSTGRES_USER: vol_bot
+      POSTGRES_PASSWORD: vol_bot_pass
+      POSTGRES_DB: vol_bot_db
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

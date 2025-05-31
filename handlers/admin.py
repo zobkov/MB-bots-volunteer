@@ -1,7 +1,5 @@
 import logging
-
 from datetime import datetime
-
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
@@ -9,17 +7,11 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 
 from states.states import FSMTaskEdit
-
-from database.sqlite_model import Task
-
 from lexicon.lexicon_ru import LEXICON_RU 
-
-from handlers.callbacks import NavigationCD, TaskActionCD, TaskEditCD, TaskEditConfirmCD
+from handlers.callbacks import NavigationCD, TaskActionCD
 from keyboards.admin import get_menu_markup
 from keyboards.user import get_menu_markup as user_get_menu_markup
-
-from database.sqlite_model import User
-
+from database.pg_model import User, Task
 from filters.roles import IsAdmin
 
 logger = logging.getLogger(__name__)
@@ -36,9 +28,9 @@ async def proccess_start_admin(message: Message):
     )
 
 @router.message(Command(commands=['change_roles']))
-async def role_change_admin_handler(message: Message, conn=None, middleware=None, **data):
-    if conn and middleware:
-        await User.update_role(conn, message.from_user.id, "volunteer")
+async def role_change_admin_handler(message: Message, pool=None, middleware=None, **data):
+    if pool and middleware:
+        await User.update_role(pool, message.from_user.id, "volunteer")
         middleware.role_cache[message.from_user.id] = "volunteer"
         data["role"] = "volunteer"
         
@@ -49,13 +41,13 @@ async def role_change_admin_handler(message: Message, conn=None, middleware=None
             reply_markup=user_get_menu_markup("main")
         )
     else:
-        logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing connection or middleware")
+        logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing pool or middleware")
         await message.answer("Configuration error")
 
 @router.callback_query(NavigationCD.filter(F.path == "main.tasks.list"))
-async def show_tasks_list(call: CallbackQuery, conn):
+async def show_tasks_list(call: CallbackQuery, pool):
     current_time = datetime.now()
-    tasks = await Task.get_all(conn)
+    tasks = await Task.get_all(pool)
     active_tasks = [task for task in tasks if task.end_ts > current_time]
     
     text = "Текущие активные задания:\n\n"
@@ -79,19 +71,9 @@ async def show_tasks_list(call: CallbackQuery, conn):
     builder.adjust(1)
     await call.message.edit_text(text, reply_markup=builder.as_markup())
 
-
-
-@router.callback_query(TaskActionCD.filter(F.action == "delete"))
-async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, conn):
-    NotImplemented # TODO
-
-@router.callback_query(TaskActionCD.filter(F.action == "create_assignment"))
-async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, conn):
-    NotImplemented # TODO
-
 @router.callback_query(TaskActionCD.filter(F.action == "view"))
-async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, conn):
-    task = await Task.get_by_id(conn, callback_data.task_id)
+async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, pool):
+    task = await Task.get_by_id(pool, callback_data.task_id)
     if not task:
         await call.answer("Task not found!")
         return

@@ -2,34 +2,17 @@ import asyncio
 import logging
 import logging.config
 
-# aiogram imports
-from aiogram import Bot, Dispatcher, F
+from aiogram import Bot, Dispatcher
 
-# handlers
 from handlers import admin, other, user, task_creation, task_edit
-
-# main menu
 from keyboards.set_menu import set_main_menu
-
-# config module
 from config_data.config import Config, load_config
-
-# logger settings
 from utils.logger.logging_settings import logging_config
-
-# database
-from database.sqlite_model import create_connection
-
-# middleware
+from database.pg_model import create_pool
 from middleware.registration import RoleAssigmmentMiddleware
 
 logging.config.dictConfig(logging_config)
-
 logger = logging.getLogger(__name__)
-
-
-
-
 
 async def main() -> None:
     config: Config = load_config()
@@ -41,12 +24,20 @@ async def main() -> None:
 
     bot = Bot(token=config.tg_bot.token)
     dp = Dispatcher()
-    dp["conn"] = await create_connection()
+    
+    # Create PostgreSQL connection pool
+    dp["pool"] = await create_pool(
+        user=config.db.user,
+        password=config.db.password,
+        database=config.db.database,
+        host=config.db.host,
+        port=config.db.port
+    )
 
     logger.info("Initialized bot and dispatcher")
 
     # Register middleware for all update types
-    dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["conn"]))  
+    dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["pool"]))  
 
     await set_main_menu(bot)
     logger.debug("Set main menu")
@@ -62,5 +53,5 @@ async def main() -> None:
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 
-
-asyncio.run(main())
+if __name__ == '__main__':
+    asyncio.run(main())

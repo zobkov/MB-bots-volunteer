@@ -1,18 +1,13 @@
 import logging
-
 from aiogram import Router
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
 from lexicon.lexicon_ru import LEXICON_RU, LEXICON_RU_BUTTONS
-
 from filters.roles import IsVolunteer
-
 from handlers.callbacks import NavigationCD
-
 from keyboards.user import get_menu_markup
 from keyboards.admin import get_menu_markup as get_admin_menu_markup
-
-from database.sqlite_model import User
+from database.pg_model import User
 
 logger = logging.getLogger(__name__)
 
@@ -27,15 +22,10 @@ async def proccess_start(message: Message):
     )
 
 @router.message(Command(commands=['change_roles']))
-async def role_change_handler(message: Message, conn=None, middleware=None, **data):
-    if conn and middleware:
-        # Update role in database
-        await User.update_role(conn, message.from_user.id, "admin")
-        
-        # Update cache in middleware
+async def role_change_handler(message: Message, pool=None, middleware=None, **data):
+    if pool and middleware:
+        await User.update_role(pool, message.from_user.id, "admin")
         middleware.role_cache[message.from_user.id] = "admin"
-        
-        # Update workflow data
         data["role"] = "admin"
         
         logger.info(f"User {message.from_user.username} (id={message.from_user.id}) has switched role to 'admin'")
@@ -45,9 +35,8 @@ async def role_change_handler(message: Message, conn=None, middleware=None, **da
             reply_markup=get_admin_menu_markup("main")
         )
     else:
-        logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing connection or middleware")
+        logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing pool or middleware")
         await message.answer("Configuration error")
-
 
 @router.callback_query(NavigationCD.filter())
 async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):

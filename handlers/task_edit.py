@@ -1,34 +1,28 @@
 import logging
 from datetime import datetime
-
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
-from database.sqlite_model import Task
+from database.pg_model import Task
 from keyboards.admin import get_menu_markup
 from keyboards.calendar import get_calendar_keyboard
-from states.states import FSMTaskCreation
+from states.states import FSMTaskEdit
 from handlers.callbacks import NavigationCD, TaskActionCD, TaskEditCD, TaskEditConfirmCD
 from filters.roles import IsAdmin
-
-from states.states import FSMTaskEdit
-
 from handlers.admin import show_task_details
-
-from lexicon.lexicon_ru import LEXICON_RU, LEXICON_RU_BUTTONS
+from lexicon.lexicon_ru import LEXICON_RU
 
 logger = logging.getLogger(__name__)
 
-# Create router specifically for task creation
 router = Router()
 router.message.filter(IsAdmin())
 router.callback_query.filter(IsAdmin())
 
 @router.callback_query(TaskActionCD.filter(F.action == "edit"))
-async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, conn, state: FSMContext):
-    task = await Task.get_by_id(conn, callback_data.task_id)
+async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, pool, state: FSMContext):
+    task = await Task.get_by_id(pool, callback_data.task_id)
     if not task:
         await call.answer("Task not found")
         logger.error(f"User {call.from_user.username} (id={call.from_user.id}): Task id={callback_data.task_id} is not found in the DB")
@@ -64,11 +58,11 @@ async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, conn, stat
     await call.message.edit_text(text, reply_markup=builder.as_markup())
 
 @router.callback_query(TaskEditCD.filter())
-async def process_edit_field(call: CallbackQuery, callback_data: TaskEditCD, state: FSMContext, conn):
+async def process_edit_field(call: CallbackQuery, callback_data: TaskEditCD, state: FSMContext, pool):
     field = callback_data.field
     task_id = callback_data.task_id
     
-    task = await Task.get_by_id(conn, task_id)
+    task = await Task.get_by_id(pool, task_id)
     if not task:
         await call.answer("Task not found!")
         return
@@ -81,8 +75,12 @@ async def process_edit_field(call: CallbackQuery, callback_data: TaskEditCD, sta
     )
     await state.set_state(FSMTaskEdit.edit_value)
     
-    builder = InlineKeyboardBuilder()
     if field in ['start_ts', 'end_ts']:
+        await call.message.edit_text(
+            f"Выберите новую {field.replace('_ts', '')} дату:",
+            reply_markup=get_calendar_keyboard()
+        )
+    else:
         builder = InlineKeyboardBuilder()
         builder.button(
             text="❌ Отмена",
@@ -90,24 +88,13 @@ async def process_edit_field(call: CallbackQuery, callback_data: TaskEditCD, sta
         )
         builder.adjust(1)
         await call.message.edit_text(
-            f"Выберите новую {field.replace('_ts', '')} дату:",
-            reply_markup=get_calendar_keyboard()
-        )
-    else:
-        builder.button(
-            text="❌ Отмена",
-            callback_data=TaskActionCD(action="view", task_id=task_id).pack()
-        )
-        builder.adjust(1)
-        await call.message.edit_text(
-            f"Выберите новое {field}:",
+            f"Введите новое значение для {field}:",
             reply_markup=builder.as_markup()
         )
 
 @router.callback_query(lambda c: c.data.startswith(("date_", "month_")), FSMTaskEdit.edit_value)
 async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext):
     if call.data.startswith("month_"):
-        # Handle month navigation
         new_date = datetime.strptime(call.data[6:], "%Y-%m")
         await call.message.edit_reply_markup(
             reply_markup=get_calendar_keyboard(new_date)
@@ -115,13 +102,12 @@ async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext
         return
     
     elif call.data.startswith("date_"):
-        selected_date = call.data[5:]  # Get the date part
+        selected_date = call.data[5:]
         data = await state.get_data()
         field = data['field']
         current_start = datetime.strptime(data['current_start'], "%Y-%m-%d %H:%M")
         current_end = datetime.strptime(data['current_end'], "%Y-%m-%d %H:%M")
         
-        # Validate selected date for start_ts and end_ts
         selected_datetime = datetime.strptime(selected_date, "%Y-%m-%d")
         
         if field == 'start_ts' and selected_datetime.date() > current_end.date():
@@ -133,10 +119,6 @@ async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext
             builder.button(
                 text="🔄 Выбрать другую дату",
                 callback_data=TaskEditCD(field="start_ts", task_id=data['task_id']).pack()
-            )
-            builder.button(
-                text="❌ Отмена",
-                callback_data=TaskActionCD(action="view", task_id=data['task_id']).pack()
             )
             builder.adjust(1)
             await call.message.edit_text(
@@ -155,10 +137,6 @@ async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext
                 text="🔄 Выбрать другую дату",
                 callback_data=TaskEditCD(field="end_ts", task_id=data['task_id']).pack()
             )
-            builder.button(
-                text="❌ Отмена",
-                callback_data=TaskActionCD(action="view", task_id=data['task_id']).pack()
-            )
             builder.adjust(1)
             await call.message.edit_text(
                 f"Ошибка: Конечная дата не может быть до начальной ({current_start.strftime('%Y-%m-%d')}).",
@@ -166,7 +144,6 @@ async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext
             )
             return
         
-        # Store selected date in state
         await state.update_data(selected_date=selected_date)
         
         builder = InlineKeyboardBuilder()
@@ -182,12 +159,12 @@ async def process_calendar_edit_selection(call: CallbackQuery, state: FSMContext
         )
 
 @router.message(FSMTaskEdit.edit_value)
-async def process_edit_value(message: Message, state: FSMContext, conn):
+async def process_edit_value(message: Message, state: FSMContext, pool):
     data = await state.get_data()
     field = data['field']
     task_id = data['task_id']
     
-    task = await Task.get_by_id(conn, task_id)
+    task = await Task.get_by_id(pool, task_id)
     if not task:
         await message.answer("Task not found!")
         await state.clear()
@@ -197,11 +174,8 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
         try:
             selected_date = data.get('selected_date')
             if not selected_date:
-                # If no date was selected, the user is trying to enter full datetime
                 new_datetime = datetime.strptime(message.text, "%Y-%m-%d %H:%M")
-                new_value = message.text
             else:
-                # If date was selected, user is entering only time
                 time = datetime.strptime(message.text, "%H:%M").strftime("%H:%M")
                 new_value = f"{selected_date} {time}"
                 new_datetime = datetime.strptime(new_value, "%Y-%m-%d %H:%M")
@@ -218,10 +192,6 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
                 builder.button(
                     text="🔄 Выбрать другое время",
                     callback_data=TaskEditCD(field="start_ts", task_id=task_id).pack()
-                )
-                builder.button(
-                    text="❌ Отмена",
-                    callback_data=TaskActionCD(action="view", task_id=task_id).pack()
                 )
                 builder.adjust(1)
                 await message.answer(
@@ -240,10 +210,6 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
                     text="🔄 Выбрать другое время",
                     callback_data=TaskEditCD(field="end_ts", task_id=task_id).pack()
                 )
-                builder.button(
-                    text="❌ Отмена",
-                    callback_data=TaskActionCD(action="view", task_id=task_id).pack()
-                )
                 builder.adjust(1)
                 await message.answer(
                     f"Ошибка: Конечное время не может быть до начального ({current_start.strftime('%Y-%m-%d %H:%M')}).",
@@ -251,6 +217,8 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
                 )
                 return
                 
+            new_value = new_datetime
+
         except ValueError:
             builder = InlineKeyboardBuilder()
             builder.button(
@@ -267,9 +235,15 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
                 reply_markup=builder.as_markup()
             )
             return
+    else:
+        new_value = message.text
 
-    # Confirm the change
-    text = f"Подтвердите изменения {field}:\n\n{new_value}"
+    # Add Task.update method to pg_model.py
+    await state.update_data(new_value=new_value)
+    await state.set_state(FSMTaskEdit.confirm_edit)
+    
+    text = f"Подтвердите изменение поля {field}:\n"
+    text += f"Новое значение: {new_value}"
     
     builder = InlineKeyboardBuilder()
     builder.button(
@@ -280,22 +254,15 @@ async def process_edit_value(message: Message, state: FSMContext, conn):
         text="❌ Отмена",
         callback_data=TaskEditConfirmCD(action="cancel", task_id=task_id, field=field).pack()
     )
-    builder.button(
-        text="🔄 Ввести другое значение",
-        callback_data=TaskEditCD(field=field, task_id=task_id).pack()
-    )
-    
-    builder.adjust(2, 1)
-    await state.update_data(new_value=new_value)
-    await state.set_state(FSMTaskEdit.confirm_edit)
+    builder.adjust(2)
     await message.answer(text, reply_markup=builder.as_markup())
 
 @router.callback_query(TaskEditConfirmCD.filter())
-async def process_edit_confirmation(call: CallbackQuery, callback_data: TaskEditConfirmCD, state: FSMContext, conn):
+async def process_edit_confirmation(call: CallbackQuery, callback_data: TaskEditConfirmCD, state: FSMContext, pool):
     if callback_data.action == "cancel":
         await state.clear()
-        await call.message.edit_text("Edit cancelled")
-        await show_task_details(call, TaskActionCD(action="view", task_id=callback_data.task_id), conn)
+        await call.message.edit_text("Редактирование отменено")
+        await show_task_details(call, TaskActionCD(action="view", task_id=callback_data.task_id), pool)
         return
 
     data = await state.get_data()
@@ -303,15 +270,32 @@ async def process_edit_confirmation(call: CallbackQuery, callback_data: TaskEdit
     field = callback_data.field
     task_id = callback_data.task_id
 
-    # Update the task
-    updated_task = await Task.update(conn, task_id, **{field: new_value})
-    if updated_task:
-        await call.message.edit_text(f"{field} успешно обновлено!")
-        logger.info(f"User {call.from_user.username} (id={call.from_user.id}) updated task {task_id} {field}")
-        # Return to task view
-        await show_task_details(call, TaskActionCD(action="view", task_id=task_id), conn)
-    else:
-        await call.message.edit_text("Ошибка при внесении изменений на сервере")
-        logger.error(f"User {call.from_user.username} (id={call.from_user.id}) failed to update task {task_id} {field}")
+    async with pool.acquire() as conn:
+        if field in ['start_ts', 'end_ts']:
+            # Handle datetime string that might include seconds
+            if isinstance(new_value, str):
+                try:
+                    # Try parsing with seconds first
+                    new_value = datetime.strptime(str(new_value), "%Y-%m-%d %H:%M:%S")
+                except ValueError:
+                    try:
+                        # Try parsing without seconds
+                        new_value = datetime.strptime(str(new_value), "%Y-%m-%d %H:%M")
+                    except ValueError as e:
+                        logger.error(f"Failed to parse datetime: {e}")
+                        await call.message.edit_text("Error: Invalid date format")
+                        return
+        
+        await conn.execute(
+            f'''
+            UPDATE task 
+            SET {field} = $1, updated_at = $2
+            WHERE task_id = $3
+            ''',
+            new_value, datetime.now(), task_id
+        )
 
+    # Show updated task details
+    await call.message.edit_text(f"{field} успешно обновлено!")
+    await show_task_details(call, TaskActionCD(action="view", task_id=task_id), pool)
     await state.clear()
