@@ -11,7 +11,7 @@ from lexicon.lexicon_ru import LEXICON_RU
 from handlers.callbacks import NavigationCD, TaskActionCD
 from keyboards.admin import get_menu_markup
 from keyboards.user import get_menu_markup as user_get_menu_markup
-from database.pg_model import User, Task
+from database.pg_model import User, Task, Assignment
 from filters.roles import IsAdmin
 from utils.event_time import EventTimeManager
 
@@ -50,7 +50,7 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
     tasks = await Task.get_all(pool)
     current_time = event_manager.current_time
     
-    text = "Текущие активные задания:\n\n"
+    text = "<b>Текущие активные задания:</b>\n\n"
     active_tasks = []
     
     for task in tasks:
@@ -58,10 +58,22 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
         start_abs, end_abs = task.get_absolute_times(event_manager)
         if end_abs > current_time:
             active_tasks.append(task)
-            text += f"📌 {task.title}\n"
-            text += f"День {task.start_day} {task.start_time} - День {task.end_day} {task.end_time}\n\n"
-            text += f"(Абсолютное время начала: {start_abs.strftime('%Y-%m-%d %H:%M')})\n"
-            text += f"(Абсолютное время конца: {end_abs.strftime('%Y-%m-%d %H:%M')})\n\n "
+            text += f"📌 <b>{task.title}</b>\n"
+            text += f"<i>День {task.start_day} {task.start_time} - День {task.end_day} {task.end_time}</i>\n"
+            
+            # Add volunteers information
+            assignments = await Assignment.get_by_task(pool, task.task_id)
+            active_assignments = [a for a in assignments if a.status != 'cancelled']
+            
+            if active_assignments:
+                text += "👥 Волонтеры:\n"
+                for assignment in active_assignments:
+                    volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
+                    text += f"  • {volunteer.name} (@{volunteer.tg_username})\n"
+            else:
+                text += "❌ Нет назначенных волонтеров\n"
+                
+            text += "\n---\n\n"
 
     builder = InlineKeyboardBuilder()
     for task in active_tasks:
@@ -90,7 +102,19 @@ async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, po
     text += f"Описание: {task.description}\n"
     text += f"Начало: День {task.start_day} {task.start_time}\n"
     text += f"Конец: День {task.end_day} {task.end_time}\n"
-    text += f"Статус: {task.status}\n"
+    text += f"Статус: {task.status}\n\n"
+
+    # Get and display assigned volunteers
+    assignments = await Assignment.get_by_task(pool, task.task_id)
+    if assignments:
+        text += "👥 Назначенные волонтеры:\n"
+        for assignment in assignments:
+            if assignment.status != 'cancelled':  # Show only active assignments
+                volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
+                text += f"• {volunteer.name} (@{volunteer.tg_username})\n"
+                text += f"  🕒 {assignment.start_time}-{assignment.end_time}\n"
+    else:
+        text += "❌ Нет назначенных волонтеров\n"
 
     builder = InlineKeyboardBuilder()
     builder.button(

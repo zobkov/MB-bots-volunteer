@@ -203,3 +203,178 @@ class Task:
                     completed_at=row['completed_at']
                 )
             return None
+
+@dataclass
+class Assignment:
+    assign_id: Optional[int]
+    task_id: int 
+    tg_id: int
+    assigned_by: int
+    assigned_at: datetime
+    start_day: int
+    start_time: str
+    end_day: int
+    end_time: str
+    status: str
+    notification_scheduled: bool = False  # Флаг для отслеживания запланированных уведомлений
+
+    @staticmethod
+    async def create(pool: asyncpg.Pool, task_id: int, tg_id: int, assigned_by: int,
+                    start_day: int, start_time: str, end_day: int, end_time: str,
+                    status: str = 'assigned') -> 'Assignment':
+        """Create a new assignment"""
+        assigned_at = datetime.now()
+        
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                '''
+                INSERT INTO assignment (
+                    task_id, tg_id, assigned_by, assigned_at,
+                    start_day, start_time, end_day, end_time, status
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                RETURNING *
+                ''',
+                task_id, tg_id, assigned_by, assigned_at,
+                start_day, start_time, end_day, end_time, status
+            )
+            
+            return Assignment(
+                assign_id=row['assign_id'],
+                task_id=row['task_id'],
+                tg_id=row['tg_id'],
+                assigned_by=row['assigned_by'],
+                assigned_at=row['assigned_at'],
+                start_day=row['start_day'],
+                start_time=row['start_time'],
+                end_day=row['end_day'],
+                end_time=row['end_time'],
+                status=row['status']
+            )
+
+    @staticmethod
+    async def get_by_task(pool: asyncpg.Pool, task_id: int) -> List['Assignment']:
+        """Get all assignments for a specific task"""
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM assignment WHERE task_id = $1', task_id)
+            return [
+                Assignment(
+                    assign_id=row['assign_id'],
+                    task_id=row['task_id'],
+                    tg_id=row['tg_id'],
+                    assigned_by=row['assigned_by'],
+                    assigned_at=row['assigned_at'],
+                    start_day=row['start_day'],
+                    start_time=row['start_time'],
+                    end_day=row['end_day'],
+                    end_time=row['end_time'],
+                    status=row['status']
+                ) for row in rows
+            ]
+
+    @staticmethod
+    async def get_by_volunteer(pool: asyncpg.Pool, tg_id: int) -> List['Assignment']:
+        """Get all assignments for a specific volunteer"""
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('SELECT * FROM assignment WHERE tg_id = $1', tg_id)
+            return [
+                Assignment(
+                    assign_id=row['assign_id'],
+                    task_id=row['task_id'],
+                    tg_id=row['tg_id'],
+                    assigned_by=row['assigned_by'],
+                    assigned_at=row['assigned_at'],
+                    start_day=row['start_day'],
+                    start_time=row['start_time'],
+                    end_day=row['end_day'],
+                    end_time=row['end_time'],
+                    status=row['status']
+                ) for row in rows
+            ]
+
+    @staticmethod
+    async def update_status(pool: asyncpg.Pool, assign_id: int, new_status: str) -> Optional['Assignment']:
+        """Update assignment status"""
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                '''
+                UPDATE assignment 
+                SET status = $1
+                WHERE assign_id = $2
+                RETURNING *
+                ''',
+                new_status, assign_id
+            )
+            
+            if row:
+                return Assignment(
+                    assign_id=row['assign_id'],
+                    task_id=row['task_id'],
+                    tg_id=row['tg_id'],
+                    assigned_by=row['assigned_by'],
+                    assigned_at=row['assigned_at'],
+                    start_day=row['start_day'],
+                    start_time=row['start_time'],
+                    end_day=row['end_day'],
+                    end_time=row['end_time'],
+                    status=row['status']
+                )
+        return None
+
+    def get_absolute_times(self, event_manager: EventTimeManager) -> tuple[datetime, datetime]:
+        """Get absolute start and end times for the assignment"""
+        start = event_manager.to_absolute_time(EventTime(self.start_day, self.start_time))
+        end = event_manager.to_absolute_time(EventTime(self.end_day, self.end_time))
+        return start, end
+
+    @staticmethod
+    async def get_all_with_details(pool: asyncpg.Pool) -> List['Assignment']:
+        """Get all assignments with task and volunteer details"""
+        async with pool.acquire() as conn:
+            rows = await conn.fetch('''
+                SELECT a.*, t.title as task_title, 
+                       u.name as volunteer_name, u.tg_username as volunteer_username
+                FROM assignment a
+                JOIN task t ON a.task_id = t.task_id
+                JOIN users u ON a.tg_id = u.tg_id
+                ORDER BY t.task_id, a.assigned_at
+            ''')
+            
+            return [Assignment(
+                assign_id=row['assign_id'],
+                task_id=row['task_id'],
+                tg_id=row['tg_id'],
+                assigned_by=row['assigned_by'],
+                assigned_at=row['assigned_at'],
+                start_day=row['start_day'],
+                start_time=row['start_time'],
+                end_day=row['end_day'],
+                end_time=row['end_time'],
+                status=row['status']
+            ) for row in rows]
+
+    @staticmethod
+    async def mark_notification_scheduled(pool: asyncpg.Pool, assign_id: int) -> None:
+        """Mark assignment as having scheduled notification"""
+        async with pool.acquire() as conn:
+            await conn.execute(
+                '''
+                UPDATE assignment 
+                SET notification_scheduled = true
+                WHERE assign_id = $1
+                ''',
+                assign_id
+            )
+
+    @staticmethod
+    async def get_pending_notifications(pool: asyncpg.Pool) -> List['Assignment']:
+        """Get all assignments that need notifications"""
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                '''
+                SELECT * FROM assignment 
+                WHERE notification_scheduled = false 
+                AND status = 'assigned'
+                '''
+            )
+            return [Assignment(**dict(row)) for row in rows]

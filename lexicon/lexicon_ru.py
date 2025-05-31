@@ -15,9 +15,11 @@ LEXICON_RU: dict[str, str] = {
     'task_creation.time_format':"Please enter time in format HH:MM (e.g. 09:30):",
     'task_creation.start_date': "Select end date:",
     'task_creation.invalid_time_format':"Invalid time format! Please use HH:MM format (e.g. 09:30):",
-    'task_edit.not_found':    "Задание не найдено"
-
-
+    'task_edit.not_found':    "Задание не найдено",
+    'main.assignments.create_assignemnt' : "Создаем назначение",
+    'assignments_list': 'Список назначений',
+    'create_assignment': 'Создать назначение',
+    'select_task_for_assignment': 'Выберите задание для назначения',
 }
 
 LEXICON_RU_BUTTONS: dict[str, str] = {
