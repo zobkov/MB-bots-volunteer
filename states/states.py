@@ -8,9 +8,7 @@ class FSMTaskCreation(StatesGroup):
     end_time = State()
 
 class FSMTaskEdit(StatesGroup):
-    edit_field = State()
     edit_value = State()
-    confirm_edit = State()
 
 class FSMStartRole(StatesGroup):
     user = State()

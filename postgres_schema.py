@@ -15,14 +15,16 @@ async def create_tables(pool: asyncpg.Pool):
             )
         ''')
 
-        # Tasks table
+        # Updated Tasks table with relative dates
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS task (
                 task_id      SERIAL PRIMARY KEY,
                 title        TEXT    NOT NULL,
                 description  TEXT,
-                start_ts     TIMESTAMP NOT NULL,
-                end_ts       TIMESTAMP NOT NULL,
+                start_day    INTEGER NOT NULL,   -- День мероприятия (1-based)
+                start_time   TEXT    NOT NULL,   -- Время в формате HH:MM
+                end_day      INTEGER NOT NULL,   -- День мероприятия (1-based)
+                end_time     TEXT    NOT NULL,   -- Время в формате HH:MM
                 status       TEXT    NOT NULL,
                 created_at   TIMESTAMP NOT NULL,
                 updated_at   TIMESTAMP,
@@ -30,7 +32,7 @@ async def create_tables(pool: asyncpg.Pool):
             )
         ''')
 
-        # Assignments table
+        # Updated Assignments table with relative dates
         await conn.execute('''
             CREATE TABLE IF NOT EXISTS assignment (
                 assign_id    SERIAL PRIMARY KEY,
@@ -38,8 +40,10 @@ async def create_tables(pool: asyncpg.Pool):
                 tg_id        BIGINT NOT NULL REFERENCES users(tg_id),
                 assigned_by  BIGINT NOT NULL REFERENCES users(tg_id),
                 assigned_at  TIMESTAMP NOT NULL,
-                start_ts     TIMESTAMP NOT NULL,
-                end_ts       TIMESTAMP NOT NULL,
+                start_day    INTEGER NOT NULL,
+                start_time   TEXT NOT NULL,
+                end_day      INTEGER NOT NULL,
+                end_time     TEXT NOT NULL,
                 status       TEXT NOT NULL
             )
         ''')

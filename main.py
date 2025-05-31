@@ -3,13 +3,13 @@ import logging
 import logging.config
 
 from aiogram import Bot, Dispatcher
-
 from handlers import admin, other, user, task_creation, task_edit
 from keyboards.set_menu import set_main_menu
 from config_data.config import Config, load_config
 from utils.logger.logging_settings import logging_config
-from database.pg_model import create_pool
+from database.pg_model import create_pool  
 from middleware.registration import RoleAssigmmentMiddleware
+from utils.event_time import EventTimeManager
 
 logging.config.dictConfig(logging_config)
 logger = logging.getLogger(__name__)
@@ -22,8 +22,18 @@ async def main() -> None:
     
     logger.info("Loaded bot configuration")
 
+    # Create event time manager
+    event_manager = EventTimeManager(
+        start_date=config.event.start_date,
+        days_count=config.event.days_count,
+        debug_mode=config.event.debug_mode
+    )
+
     bot = Bot(token=config.tg_bot.token)
     dp = Dispatcher()
+    
+    # Add event manager to dispatcher data
+    dp["event_manager"] = event_manager
     
     # Create PostgreSQL connection pool
     dp["pool"] = await create_pool(
@@ -50,6 +60,10 @@ async def main() -> None:
 
     logger.info("Registered routers")
     
+    if config.event.debug_mode:
+        from handlers import debug
+        dp.include_router(debug.router)
+
     await bot.delete_webhook(drop_pending_updates=True)
     await dp.start_polling(bot)
 

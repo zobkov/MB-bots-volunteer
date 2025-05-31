@@ -13,6 +13,7 @@ from keyboards.admin import get_menu_markup
 from keyboards.user import get_menu_markup as user_get_menu_markup
 from database.pg_model import User, Task
 from filters.roles import IsAdmin
+from utils.event_time import EventTimeManager
 
 logger = logging.getLogger(__name__)
 
@@ -45,16 +46,22 @@ async def role_change_admin_handler(message: Message, pool=None, middleware=None
         await message.answer("Configuration error")
 
 @router.callback_query(NavigationCD.filter(F.path == "main.tasks.list"))
-async def show_tasks_list(call: CallbackQuery, pool):
-    current_time = datetime.now()
+async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeManager):
     tasks = await Task.get_all(pool)
-    active_tasks = [task for task in tasks if task.end_ts > current_time]
+    current_time = event_manager.current_time
     
     text = "Текущие активные задания:\n\n"
-    for task in active_tasks:
-        text += f"📌 {task.title}\n"
-        text += f"Начало: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
-        text += f"Конец: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n\n"
+    active_tasks = []
+    
+    for task in tasks:
+        # Get absolute end time for comparison
+        start_abs, end_abs = task.get_absolute_times(event_manager)
+        if end_abs > current_time:
+            active_tasks.append(task)
+            text += f"📌 {task.title}\n"
+            text += f"День {task.start_day} {task.start_time} - День {task.end_day} {task.end_time}\n\n"
+            text += f"(Абсолютное время начала: {start_abs.strftime('%Y-%m-%d %H:%M')})\n"
+            text += f"(Абсолютное время конца: {end_abs.strftime('%Y-%m-%d %H:%M')})\n\n "
 
     builder = InlineKeyboardBuilder()
     for task in active_tasks:
@@ -81,8 +88,8 @@ async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, po
     text = f"📋 Детали задания:\n\n"
     text += f"Название: {task.title}\n"
     text += f"Описание: {task.description}\n"
-    text += f"Начало: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
-    text += f"Конец: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n"
+    text += f"Начало: День {task.start_day} {task.start_time}\n"
+    text += f"Конец: День {task.end_day} {task.end_time}\n"
     text += f"Статус: {task.status}\n"
 
     builder = InlineKeyboardBuilder()

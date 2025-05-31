@@ -3,13 +3,14 @@ from datetime import datetime
 from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.fsm.context import FSMContext
+from aiogram.utils.keyboard import InlineKeyboardBuilder, InlineKeyboardMarkup
 from database.pg_model import Task
 from keyboards.admin import get_menu_markup
-from keyboards.calendar import get_calendar_keyboard
 from states.states import FSMTaskCreation
 from handlers.callbacks import NavigationCD
 from filters.roles import IsAdmin
 from lexicon.lexicon_ru import LEXICON_RU
+from utils.event_time import EventTime, EventTimeManager
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +18,22 @@ router = Router()
 router.message.filter(IsAdmin())
 router.callback_query.filter(IsAdmin())
 
+def get_day_selection_keyboard(event_manager: EventTimeManager) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    current_day = event_manager.get_current_event_day()
+    
+    for day in range(current_day, event_manager.days_count + 1):
+        builder.button(
+            text=f"День {day}",
+            callback_data=f"day_{day}"
+        )
+    
+    builder.adjust(2)
+    return builder.as_markup()
+
 @router.callback_query(NavigationCD.filter(F.path == "main.tasks.create_task"))
 async def add_task(call: CallbackQuery, state: FSMContext):
-    logger.info(f'{call.message.from_user.username} (id={call.message.from_user.id}) has started add_task() handler')
+    logger.info(f'{call.from_user.username} (id={call.from_user.id}) has started task creation')
     await call.message.edit_text(LEXICON_RU["task_creation.title"])
     await state.set_state(FSMTaskCreation.title)
 
@@ -30,120 +44,104 @@ async def process_title(message: Message, state: FSMContext):
     await state.set_state(FSMTaskCreation.description)
 
 @router.message(FSMTaskCreation.description)
-async def process_description(message: Message, state: FSMContext):
+async def process_description(message: Message, state: FSMContext, event_manager: EventTimeManager):
     await state.update_data(description=message.text)
+    
     await message.answer(
-        LEXICON_RU['task_creation.start_date'],
-        reply_markup=get_calendar_keyboard()
+        "Выберите день мероприятия для начала задания:",
+        reply_markup=get_day_selection_keyboard(event_manager)
     )
     await state.set_state(FSMTaskCreation.start_time)
 
-@router.callback_query(lambda c: c.data.startswith(("date_", "month_")))
-async def process_calendar_selection(call: CallbackQuery, state: FSMContext):
-    current_state = await state.get_state()
+@router.callback_query(lambda c: c.data.startswith("day_"))
+async def process_day_selection(call: CallbackQuery, state: FSMContext):
+    day = int(call.data.split("_")[1])
+    await state.update_data(start_day=day)
     
-    if call.data.startswith("month_"):
-        # Handle month navigation
-        new_date = datetime.strptime(call.data[6:], "%Y-%m")
-        await call.message.edit_reply_markup(
-            reply_markup=get_calendar_keyboard(new_date)
-        )
-        return
-    
-    elif call.data.startswith("date_"):
-        selected_date = call.data[5:]
-        
-        if current_state == FSMTaskCreation.end_time:
-            data = await state.get_data()
-            start_datetime = datetime.strptime(data['start_time'], "%Y-%m-%d %H:%M")
-            selected_datetime = datetime.strptime(selected_date, "%Y-%m-%d")
-            
-            if selected_datetime.date() < start_datetime.date():
-                await call.message.edit_text(
-                    f"Конченая дата дожна быть после {start_datetime.strftime('%Y-%m-%d')}!\n"
-                    f"Пожалуйста, укажите правильную дату:",
-                    reply_markup=get_calendar_keyboard(selected_datetime)
-                )
-                logger.warning(f'{call.message.from_user.username} (id={call.message.from_user.id}): Invalid date. Must be not before the start date')
-                return
-        
-        await state.update_data(selected_date=selected_date)
-        await call.message.edit_text(
-            f"Выбранная дата: {selected_date}\n"
-            f"{LEXICON_RU['task_creation.time_format']}"
-        )
+    await call.message.edit_text(
+        f"Выбран день {day}\n"
+        f"Введите время начала в формате HH:MM (например, 09:30):"
+    )
 
 @router.message(FSMTaskCreation.start_time)
-async def process_time_input(message: Message, state: FSMContext):
+async def process_start_time(message: Message, state: FSMContext, event_manager: EventTimeManager):
     try:
+        # Проверяем формат времени
         time = datetime.strptime(message.text, "%H:%M").strftime("%H:%M")
         data = await state.get_data()
-        selected_date = data.get("selected_date")
+        start_day = data['start_day']
         
-        full_datetime = f"{selected_date} {time}"
-        datetime_obj = datetime.strptime(full_datetime, "%Y-%m-%d %H:%M")
+        # Создаем EventTime для проверки
+        start_event_time = EventTime(day=start_day, time=time)
         
-        if datetime_obj <= datetime.now():
+        # Проверяем, что время в будущем
+        if not event_manager.is_valid_event_time(start_event_time):
             await message.answer(
-                "Выберите будущее время\n"
-                "Выберите дату еще раз:",
-                reply_markup=get_calendar_keyboard()
+                "Выберите будущее время!\n"
+                "Выберите день начала заново:",
+                reply_markup=get_day_selection_keyboard(event_manager)
             )
             return
             
-        await state.update_data(start_time=full_datetime)
+        await state.update_data(start_time=time)
+        
+        # Показываем клавиатуру для выбора дня окончания
         await message.answer(
-            LEXICON_RU['task_creation.start_date'],
-            reply_markup=get_calendar_keyboard(datetime_obj)
+            "Выберите день окончания задания:",
+            reply_markup=get_day_selection_keyboard(event_manager)
         )
         await state.set_state(FSMTaskCreation.end_time)
         
     except ValueError:
-        await message.answer(
-            LEXICON_RU['task_creation.invalid_time_format']
-        )
-        logger.warning(f'{message.from_user.username} (id={message.from_user.id}): Invalid time string')
+        await message.answer(LEXICON_RU['task_creation.invalid_time_format'])
 
 @router.message(FSMTaskCreation.end_time)
-async def process_end_time_input(message: Message, state: FSMContext, pool):
+async def process_end_time(message: Message, state: FSMContext, event_manager: EventTimeManager, pool):
     try:
         time = datetime.strptime(message.text, "%H:%M").strftime("%H:%M")
         data = await state.get_data()
-        selected_date = data.get("selected_date")
-        start_time = datetime.strptime(data.get("start_time"), "%Y-%m-%d %H:%M")
         
-        full_datetime = f"{selected_date} {time}"
-        end_time = datetime.strptime(full_datetime, "%Y-%m-%d %H:%M")
+        # Создаем объекты EventTime для начала и конца
+        start_event_time = EventTime(day=data['start_day'], time=data['start_time'])
+        end_event_time = EventTime(day=data['start_day'], time=time)  # Используем тот же день
         
-        if end_time <= start_time:
+        # Получаем абсолютные времена для сравнения
+        start_abs = event_manager.to_absolute_time(start_event_time)
+        end_abs = event_manager.to_absolute_time(end_event_time)
+        
+        if end_abs <= start_abs:
             await message.answer(
-                f"End time must be after {start_time.strftime('%H:%M')} on {start_time.strftime('%Y-%m-%d')}!\n"
-                f"Please enter a later time for {selected_date}:"
+                f"Время окончания должно быть после начала ({data['start_time']})!\n"
+                f"Введите время окончания заново:"
             )
             return
             
+        # Создаем задание
         task = await Task.create(
             pool=pool,
             title=data['title'],
             description=data['description'],
-            start_ts=data['start_time'],  # This will be converted to datetime in Task.create
-            end_ts=full_datetime,         # This will be converted to datetime in Task.create
+            start_event_time=start_event_time,
+            end_event_time=end_event_time,
             status='Unscheduled'
         )
         
-        logger.info(f'{message.from_user.username} (id={message.from_user.id}): Successfully created task id={task.task_id}')
+        logger.info(f'Task created: id={task.task_id} by user {message.from_user.username} (id={message.from_user.id})')
 
+        # Показываем информацию о созданном задании
+        start_abs, end_abs = task.get_absolute_times(event_manager)
         await message.answer(
-            f"Task created successfully!\n\n"
-            f"Title: {task.title}\n"
-            f"Description: {task.description}\n"
-            f"Start: {task.start_ts.strftime('%Y-%m-%d %H:%M')}\n"
-            f"End: {task.end_ts.strftime('%Y-%m-%d %H:%M')}\n"
-            f"Status: {task.status}",
+            f"Задание успешно создано!\n\n"
+            f"Название: {task.title}\n"
+            f"Описание: {task.description}\n"
+            f"Начало: День {task.start_day} {task.start_time}\n"
+            f"Конец: День {task.end_day} {task.end_time}\n"
+            f"Абсолютное время начала: {start_abs.strftime('%Y-%m-%d %H:%M')}\n"
+            f"Абсолютное время конца: {end_abs.strftime('%Y-%m-%d %H:%M')}\n"
+            f"Статус: {task.status}",
             reply_markup=get_menu_markup("main.tasks")
         )
         await state.clear()
         
-    except ValueError as e:
-        logger.error(f"Date parsing error: {e}")
+    except ValueError:
         await message.answer(LEXICON_RU['task_creation.invalid_time_format'])

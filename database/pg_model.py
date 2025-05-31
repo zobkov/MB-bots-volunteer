@@ -1,13 +1,11 @@
+import asyncpg
 from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
-import asyncpg
+from utils.event_time import EventTime, EventTimeManager
 
-from utils.date_format import datetime_format_str
-
-# Utility functions
-async def create_pool(dsn: str = None, **kwargs) -> asyncpg.Pool:
-    """Create and return a connection pool to the PostgreSQL database."""
+async def create_pool(**kwargs) -> asyncpg.Pool:
+    """Create a connection pool for PostgreSQL"""
     return await asyncpg.create_pool(**kwargs)
 
 @dataclass
@@ -65,8 +63,10 @@ class Task:
     task_id: Optional[int]
     title: str
     description: str
-    start_ts: datetime
-    end_ts: datetime
+    start_day: int
+    start_time: str
+    end_day: int
+    end_time: str
     status: str
     created_at: datetime
     updated_at: Optional[datetime] = None
@@ -74,33 +74,47 @@ class Task:
 
     @staticmethod
     async def create(pool: asyncpg.Pool, title: str, description: str, 
-                    start_ts: str, end_ts: str, status: str) -> 'Task':
+                    start_event_time: EventTime, end_event_time: EventTime, 
+                    status: str) -> 'Task':
         created_at = datetime.now()
-        # Convert string dates to datetime objects
-        start_datetime = datetime.strptime(start_ts, "%Y-%m-%d %H:%M")
-        end_datetime = datetime.strptime(end_ts, "%Y-%m-%d %H:%M")
         
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 '''
-                INSERT INTO task (title, description, start_ts, end_ts, status, created_at)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO task (
+                    title, description, 
+                    start_day, start_time, 
+                    end_day, end_time,
+                    status, created_at
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                 RETURNING *
                 ''',
-                title, description, start_datetime, end_datetime, status, created_at
+                title, description,
+                start_event_time.day, start_event_time.time,
+                end_event_time.day, end_event_time.time,
+                status, created_at
             )
             
             return Task(
                 task_id=row['task_id'],
                 title=row['title'],
                 description=row['description'],
-                start_ts=row['start_ts'],
-                end_ts=row['end_ts'],
+                start_day=row['start_day'],
+                start_time=row['start_time'],
+                end_day=row['end_day'],
+                end_time=row['end_time'],
                 status=row['status'],
                 created_at=row['created_at'],
                 updated_at=row['updated_at'],
                 completed_at=row['completed_at']
             )
+
+    def get_absolute_times(self, event_manager: EventTimeManager) -> tuple[datetime, datetime]:
+        """Возвращает абсолютные даты начала и конца задания"""
+        start = event_manager.to_absolute_time(EventTime(self.start_day, self.start_time))
+        end = event_manager.to_absolute_time(EventTime(self.end_day, self.end_time))
+        return start, end
 
     @staticmethod
     async def get_all(pool: asyncpg.Pool) -> List['Task']:
@@ -111,8 +125,10 @@ class Task:
                     task_id=row['task_id'],
                     title=row['title'],
                     description=row['description'],
-                    start_ts=row['start_ts'],
-                    end_ts=row['end_ts'],
+                    start_day=row['start_day'],
+                    start_time=row['start_time'],
+                    end_day=row['end_day'],
+                    end_time=row['end_time'],
                     status=row['status'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at'],
@@ -129,8 +145,10 @@ class Task:
                     task_id=row['task_id'],
                     title=row['title'],
                     description=row['description'],
-                    start_ts=row['start_ts'],
-                    end_ts=row['end_ts'],
+                    start_day=row['start_day'],
+                    start_time=row['start_time'],
+                    end_day=row['end_day'],
+                    end_time=row['end_time'],
                     status=row['status'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at'],
@@ -175,8 +193,10 @@ class Task:
                     task_id=row['task_id'],
                     title=row['title'],
                     description=row['description'],
-                    start_ts=row['start_ts'],
-                    end_ts=row['end_ts'],
+                    start_day=row['start_day'],
+                    start_time=row['start_time'],
+                    end_day=row['end_day'],
+                    end_time=row['end_time'],
                     status=row['status'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at'],
