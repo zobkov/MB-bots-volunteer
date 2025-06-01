@@ -2,8 +2,8 @@ import asyncio
 import logging
 import logging.config
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore  
-from apscheduler.executors.pool import ThreadPoolExecutor, ProcessPoolExecutor
+from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
+from apscheduler.executors.asyncio import AsyncIOExecutor  # Add this import
 
 from aiogram import Bot, Dispatcher
 from aiogram.enums.parse_mode import ParseMode
@@ -86,12 +86,12 @@ async def main() -> None:
         )
     }
     executors = {
-        'default': ThreadPoolExecutor(20),
-        'processpool': ProcessPoolExecutor(5)
+        'default': AsyncIOExecutor()  # Use AsyncIOExecutor instead of ThreadPoolExecutor
     }
     job_defaults = {
         'coalesce': False,
-        'max_instances': 3
+        'max_instances': 3,
+        'misfire_grace_time': None  # Add this to prevent misfires
     }
 
     scheduler = AsyncIOScheduler(

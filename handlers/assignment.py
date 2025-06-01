@@ -23,6 +23,7 @@ from aiogram.exceptions import TelegramNetworkError
 import asyncio
 
 from services.notifications import notify_task_volunteers
+from keyboards.admin import send_menu_message  # Add this import
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +218,7 @@ async def finish_volunteer_selection(
                 'services.notifications:notify_task_volunteers',
                 'date',
                 run_date=notification_time,
-                args=[task_id, call.bot.token, db_config],
+                args=[task_id, call.bot.token, db_config, event_manager.debug_mode, assignment.assign_id],  # Pass assign_id
                 id=job_id,
                 replace_existing=True
             )
@@ -227,16 +228,20 @@ async def finish_volunteer_selection(
             "✅ Уведомления настроены успешно!"
         )
         
-        # Show task details with correct parameters
+        # Send new message with task details instead of editing
+        task = await Task.get_by_id(pool, task_id)
         await show_task_details(
-            call=call,  # Pass the whole callback query
-            callback_data=TaskActionCD(action="view", task_id=task_id),  # Create proper callback data
+            update=call,  # Changed from 'call' to 'update'
+            callback_data=TaskActionCD(action="view", task_id=task_id),
             pool=pool
         )
         
     except Exception as e:
         logger.error(f"Error creating assignment: {e}")
+        # Send error as new message
         await call.message.answer("❌ Ошибка при создании назначения")
+        # Return to main menu
+        await send_menu_message(call, "main.tasks")
     
     await state.clear()
 
@@ -245,15 +250,18 @@ async def cancel_selection(call: CallbackQuery, state: FSMContext, pool):
     await call.message.edit_text("❌ Создание назначения отменено")
     await state.clear()
     
-    # Return to task view with correct parameters
+    # Return to task view with new message
     task_id = (await state.get_data()).get('task_id')
     if task_id:
         task = await Task.get_by_id(pool, task_id)
         await show_task_details(
-            call=call,  # Pass the whole callback query
-            callback_data=TaskActionCD(action="view", task_id=task_id),  # Create proper callback data
+            update=call,  # Changed from 'call' to 'update'
+            callback_data=TaskActionCD(action="view", task_id=task_id),
             pool=pool
         )
+    else:
+        # If no task_id, return to main menu
+        await send_menu_message(call, "main.tasks")
 
 @router.callback_query(lambda c: c.data == "show_assignments_list")
 async def show_assignments_list(call: CallbackQuery, pool):

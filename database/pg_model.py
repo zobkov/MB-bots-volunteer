@@ -58,6 +58,18 @@ class User:
             )
         return await User.get_by_tg_id(pool, tg_id)
 
+    @staticmethod
+    async def get_by_role(pool: asyncpg.Pool, role: str) -> List['User']:
+        """Get all users with specified role"""
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                '''
+                SELECT * FROM users WHERE role = $1
+                ''',
+                role
+            )
+            return [User(**dict(row)) for row in rows]
+
 @dataclass
 class Task:
     task_id: Optional[int]
@@ -378,3 +390,44 @@ class Assignment:
                 '''
             )
             return [Assignment(**dict(row)) for row in rows]
+
+    @staticmethod
+    async def get_by_id(pool: asyncpg.Pool, assign_id: int) -> Optional['Assignment']:
+        """Get assignment by its ID"""
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                '''
+                SELECT * FROM assignment 
+                WHERE assign_id = $1
+                ''',
+                assign_id
+            )
+            return Assignment(**dict(row)) if row else None
+
+    @staticmethod
+    async def update(pool: asyncpg.Pool, assign_id: int, **kwargs) -> Optional['Assignment']:
+        """Update assignment fields"""
+        if not kwargs:
+            return None
+            
+        set_fields = []
+        values = []
+        for i, (key, value) in enumerate(kwargs.items(), start=1):
+            set_fields.append(f"{key} = ${i}")
+            values.append(value)
+        values.append(assign_id)
+        
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                f'''
+                UPDATE assignment 
+                SET {", ".join(set_fields)}
+                WHERE assign_id = ${len(values)}
+                RETURNING *
+                ''',
+                *values
+            )
+            
+            if row:
+                return Assignment(**dict(row))
+        return None

@@ -5,6 +5,7 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
+from typing import Union
 
 from states.states import FSMTaskEdit
 from lexicon.lexicon_ru import LEXICON_RU 
@@ -50,33 +51,40 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
     tasks = await Task.get_all(pool)
     current_time = event_manager.current_time
     
-    text = "<b>Текущие активные задания:</b>\n\n"
-    active_tasks = []
-    
+    # Convert tasks to tuples of (task, start_time) for sorting
+    task_times = []
     for task in tasks:
-        # Get absolute end time for comparison
         start_abs, end_abs = task.get_absolute_times(event_manager)
-        if end_abs > current_time:
-            active_tasks.append(task)
-            text += f"📌 <b>{task.title}</b>\n"
-            text += f"<i>День {task.start_day} {task.start_time} - День {task.end_day} {task.end_time}</i>\n"
+        if end_abs > current_time:  # Only include active tasks
+            task_times.append((task, start_abs))
+    
+    # Sort tasks by start time
+    task_times.sort(key=lambda x: x[1])  # Sort by start_abs
+    active_tasks = [task for task, _ in task_times]  # Store sorted tasks for keyboard
+    
+    text = "<b>Текущие активные задания:</b>\n\n"
+    
+    for task, start_time in task_times:
+        text += f"📌 <b>{task.title}</b>\n"
+        text += f"<i>День {task.start_day} {task.start_time} - День {task.end_day} {task.end_time}</i>\n"
+        
+        # Add volunteers information
+        assignments = await Assignment.get_by_task(pool, task.task_id)
+        active_assignments = [a for a in assignments if a.status != 'cancelled']
+        
+        if active_assignments:
+            text += "👥 Волонтеры:\n"
+            for assignment in active_assignments:
+                volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
+                text += f"  • {volunteer.name} (@{volunteer.tg_username})\n"
+        else:
+            text += "❌ Нет назначенных волонтеров\n"
             
-            # Add volunteers information
-            assignments = await Assignment.get_by_task(pool, task.task_id)
-            active_assignments = [a for a in assignments if a.status != 'cancelled']
-            
-            if active_assignments:
-                text += "👥 Волонтеры:\n"
-                for assignment in active_assignments:
-                    volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
-                    text += f"  • {volunteer.name} (@{volunteer.tg_username})\n"
-            else:
-                text += "❌ Нет назначенных волонтеров\n"
-                
-            text += "\n---\n\n"
+        text += "\n---\n\n"
 
+    # Build keyboard with sorted tasks
     builder = InlineKeyboardBuilder()
-    for task in active_tasks:
+    for task in active_tasks:  # Use sorted tasks list
         builder.button(
             text=f"📋 {task.title}",
             callback_data=TaskActionCD(action="view", task_id=task.task_id).pack()
@@ -91,10 +99,14 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
     await call.message.edit_text(text, reply_markup=builder.as_markup())
 
 @router.callback_query(TaskActionCD.filter(F.action == "view"))
-async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, pool):
+async def show_task_details(update: Union[Message, CallbackQuery], callback_data: TaskActionCD, pool):
+    """Show task details, works with both Message and CallbackQuery"""
     task = await Task.get_by_id(pool, callback_data.task_id)
     if not task:
-        await call.answer("Task not found!")
+        if isinstance(update, CallbackQuery):
+            await update.answer("Task not found!")
+        else:
+            await update.answer("Task not found!")
         return
     
     text = f"📋 Детали задания:\n\n"
@@ -135,7 +147,12 @@ async def show_task_details(call: CallbackQuery, callback_data: TaskActionCD, po
     )
     
     builder.adjust(2, 1, 1)
-    await call.message.edit_text(text, reply_markup=builder.as_markup())
+
+    # Handle different update types
+    if isinstance(update, CallbackQuery):
+        await update.message.edit_text(text, reply_markup=builder.as_markup())
+    else:
+        await update.answer(text, reply_markup=builder.as_markup())
 
 @router.callback_query(NavigationCD.filter())
 async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):
