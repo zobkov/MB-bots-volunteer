@@ -46,5 +46,7 @@ LEXICON_COMMANDS_RU: dict[str, str] = {
     '/help': 'Справка',
     '/change_roles': 'Switch admin<->volunteer',
     '/main_menu': "Главное меню",
-    '/add_user': "/add_user {username} {role}"
+    '/add_user': "/add_user {username} {role}",
+    '/set_debug_time': "/set_debug_time 1 12:30",
+    '/debug_status': "Show debug info"
 }

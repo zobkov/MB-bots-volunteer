@@ -43,3 +43,8 @@ async def process_start_command(message: Message, state: FSMContext):
 async def process_help_command(message: Message):
     logger.debug(f"User {message.from_user.username} (id:{message.from_user.id}) issued /help")
     await message.answer(text=LEXICON_RU['/help'])
+
+@router.message()
+async def proccess_unexpected_message(message: Message):
+    await message.answer("Произошла ошибка или бот ожидал другое сообщение/действие")
+    logger.info(f"User {message.from_user.username} (id={message.from_user.id}) has made an unexpected action. Effectively -> event is unhandled")

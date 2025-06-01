@@ -8,7 +8,7 @@ from apscheduler.executors.asyncio import AsyncIOExecutor  # Add this import
 from aiogram import Bot, Dispatcher
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.client.default import DefaultBotProperties
-from handlers import admin, other, user, task_creation, task_edit, assignment
+from handlers import admin, debug, other, user, task_creation, task_edit, assignment
 from keyboards.set_menu import set_main_menu
 from config_data.config import Config, load_config
 from utils.logger.logging_settings import logging_config
@@ -70,14 +70,15 @@ async def main() -> None:
     dp.include_router(assignment.router)
     dp.include_router(admin.router)
     dp.include_router(user.router)
-    dp.include_router(other.router)
-
-
-    logger.info("Registered routers")
-    
     if config.event.debug_mode:
         from handlers import debug
         dp.include_router(debug.router)
+
+    dp.include_router(other.router)
+
+    logger.info("Registered routers")
+    
+
 
     # Configure scheduler with SQLAlchemy jobstore
     jobstores = {
