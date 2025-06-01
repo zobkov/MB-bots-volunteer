@@ -19,6 +19,10 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
         event: TelegramObject,
         data: Dict[str, Any]
     ) -> Any:
+        # Always add pool and middleware to data
+        data["pool"] = self.pool
+        data["middleware"] = self
+        
         logger.debug(f"Middleware called with event type: {type(event)}")
         
         # Handle different event types
@@ -40,7 +44,6 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
         # Check if role is in cache first
         if user_id in self.role_cache:
             data["role"] = self.role_cache[user_id]
-            data["pool"] = self.pool
             logger.debug(f"Role retrieved from cache for user {user_id}: {data['role']}")
             return await handler(event, data)
         
@@ -53,7 +56,6 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
         # Store in cache and data
         self.role_cache[user_id] = user_data.role
         data["role"] = user_data.role
-        data["pool"] = self.pool
         logger.debug(f"Role assigned and cached for user {user_id}: {user_data.role}")
         
         return await handler(event, data)

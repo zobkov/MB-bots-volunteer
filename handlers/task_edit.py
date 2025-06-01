@@ -16,8 +16,7 @@ from handlers.admin import show_task_details
 logger = logging.getLogger(__name__)
 
 router = Router()
-router.message.filter(IsAdmin())
-router.callback_query.filter(IsAdmin())
+
 
 def get_day_selection_keyboard(event_manager: EventTimeManager, task_id: int, field: str) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()

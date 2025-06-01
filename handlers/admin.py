@@ -19,8 +19,6 @@ from utils.event_time import EventTimeManager
 logger = logging.getLogger(__name__)
 
 router = Router()
-router.message.filter(IsAdmin())
-router.callback_query.filter(IsAdmin())
 
 @router.message(CommandStart())
 async def proccess_start_admin(message: Message):
@@ -31,20 +29,25 @@ async def proccess_start_admin(message: Message):
 
 @router.message(Command(commands=['change_roles']))
 async def role_change_admin_handler(message: Message, pool=None, middleware=None, **data):
-    if pool and middleware:
+    if not pool or not middleware:
+        logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing pool or middleware")
+        await message.answer("⚠️ Ошибка конфигурации. Попробуйте позже или обратитесь к администратору.")
+        return
+        
+    try:
         await User.update_role(pool, message.from_user.id, "volunteer")
         middleware.role_cache[message.from_user.id] = "volunteer"
         data["role"] = "volunteer"
         
         logger.info(f"User {message.from_user.username} (id={message.from_user.id}) has switched role to 'volunteer'")
-        await message.answer("Роль изменена на волонтера")
+        await message.answer("✅ Роль изменена на волонтера")
         await message.answer(
             text=LEXICON_RU["main"],  
             reply_markup=user_get_menu_markup("main")
         )
-    else:
-        logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing pool or middleware")
-        await message.answer("Configuration error")
+    except Exception as e:
+        logger.error(f"Error changing role for user {message.from_user.id}: {e}")
+        await message.answer("❌ Ошибка при смене роли")
 
 @router.callback_query(NavigationCD.filter(F.path == "main.tasks.list"))
 async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeManager):

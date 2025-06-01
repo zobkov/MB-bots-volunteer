@@ -5,10 +5,11 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor  # Add this import
 
-from aiogram import Bot, Dispatcher
+from aiogram import Bot, Dispatcher, Router
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.client.default import DefaultBotProperties
-from handlers import admin, debug, other, user, task_creation, task_edit, assignment
+from handlers import admin, other, user, task_creation, task_edit, assignment
+from filters.roles import IsAdmin, IsVolunteer
 from keyboards.set_menu import set_main_menu
 from config_data.config import Config, load_config
 from utils.logger.logging_settings import logging_config
@@ -65,16 +66,29 @@ async def main() -> None:
     await set_main_menu(bot)
     logger.debug("Set main menu")
 
-    dp.include_router(task_edit.router)
-    dp.include_router(task_creation.router)
-    dp.include_router(assignment.router)
-    dp.include_router(admin.router)
-    dp.include_router(user.router)
+    admin_router = Router(name="admin_router")
+    admin_router.message.filter(IsAdmin())
+    admin_router.callback_query.filter(IsAdmin())
+
+    admin_router.include_routers(task_edit.router, task_creation.router, assignment.router, admin.router)
+
+
+    vol_router = Router(name="vol_router")
+    vol_router.message.filter(IsVolunteer())
+    vol_router.callback_query.filter(IsVolunteer())
+
+    vol_router.include_routers(user.router)
+
+
+    dp.include_router(admin_router)
+    dp.include_router(vol_router)
+
     if config.event.debug_mode:
         from handlers import debug
         dp.include_router(debug.router)
 
     dp.include_router(other.router)
+
 
     logger.info("Registered routers")
     

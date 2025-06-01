@@ -15,8 +15,6 @@ from utils.event_time import EventTime, EventTimeManager
 logger = logging.getLogger(__name__)
 
 router = Router()
-router.message.filter(IsAdmin())
-router.callback_query.filter(IsAdmin())
 
 def get_day_selection_keyboard(event_manager: EventTimeManager) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()

@@ -12,7 +12,6 @@ from database.pg_model import User
 logger = logging.getLogger(__name__)
 
 router = Router()
-router.message.filter(IsVolunteer())
 
 @router.message(CommandStart())
 async def proccess_start(message: Message):
@@ -23,20 +22,25 @@ async def proccess_start(message: Message):
 
 @router.message(Command(commands=['change_roles']))
 async def role_change_handler(message: Message, pool=None, middleware=None, **data):
-    if pool and middleware:
+    if not pool or not middleware:
+        logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing pool or middleware")
+        await message.answer("⚠️ Ошибка конфигурации. Попробуйте позже или обратитесь к администратору.")
+        return
+        
+    try:
         await User.update_role(pool, message.from_user.id, "admin")
         middleware.role_cache[message.from_user.id] = "admin"
         data["role"] = "admin"
         
         logger.info(f"User {message.from_user.username} (id={message.from_user.id}) has switched role to 'admin'")
-        await message.answer("Role changed to admin")
+        await message.answer("✅ Роль изменена на администратора")
         await message.answer(
             text=LEXICON_RU['main'],
             reply_markup=get_admin_menu_markup("main")
         )
-    else:
-        logger.error(f"User {message.from_user.username} (id={message.from_user.id}) tried to switch roles but missing pool or middleware")
-        await message.answer("Configuration error")
+    except Exception as e:
+        logger.error(f"Error changing role for user {message.from_user.id}: {e}")
+        await message.answer("❌ Ошибка при смене роли")
 
 @router.callback_query(NavigationCD.filter())
 async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):

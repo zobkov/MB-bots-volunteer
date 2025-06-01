@@ -28,7 +28,6 @@ from keyboards.admin import send_menu_message  # Add this import
 logger = logging.getLogger(__name__)
 
 router = Router()
-router.callback_query.filter(IsAdmin())
 
 class AssignmentStates(StatesGroup):
     selecting_volunteers = State()
