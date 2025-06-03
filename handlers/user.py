@@ -1,13 +1,16 @@
 import logging
-from aiogram import Router
+from aiogram import Router, F
 from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+
 from lexicon.lexicon_ru import LEXICON_RU, LEXICON_RU_BUTTONS
 from filters.roles import IsVolunteer
 from handlers.callbacks import NavigationCD
 from keyboards.user import get_menu_markup
 from keyboards.admin import get_menu_markup as get_admin_menu_markup
-from database.pg_model import User
+from database.pg_model import User, Assignment, Task
+from utils.formatting import format_task_time
 
 logger = logging.getLogger(__name__)
 
@@ -16,8 +19,8 @@ router = Router()
 @router.message(CommandStart())
 async def proccess_start(message: Message):
     await message.answer(
-        text=LEXICON_RU["main"],
-        reply_markup=get_menu_markup("main")
+        text=LEXICON_RU["vmain"],
+        reply_markup=get_menu_markup("vmain")
     )
 
 @router.message(Command(commands=['change_roles']))
@@ -42,11 +45,98 @@ async def role_change_handler(message: Message, pool=None, middleware=None, **da
         logger.error(f"Error changing role for user {message.from_user.id}: {e}")
         await message.answer("❌ Ошибка при смене роли")
 
+
+
+@router.callback_query(NavigationCD.filter(F.path == "vmain.mytasks"))
+async def show_volunteer_tasks(call: CallbackQuery, pool):
+    # Get all active assignments for the volunteer
+    assignments = await Assignment.get_by_volunteer(pool, call.from_user.id)
+    active_assignments = [a for a in assignments if a.status != 'cancelled']
+    
+    logger.debug(f"Volunteer tasks: {active_assignments}")
+
+    if not active_assignments:
+        text = LEXICON_RU['vmain.mytasks.empty']
+        builder = InlineKeyboardBuilder()
+        builder.button(
+            text=LEXICON_RU_BUTTONS['go_back'],
+            callback_data=NavigationCD(path="vmain").pack()
+        )
+    else:
+        tasks_text = []
+        builder = InlineKeyboardBuilder()
+        
+        for assignment in active_assignments:
+            task = await Task.get_by_id(pool, assignment.task_id)
+            if task:
+                # Add task info to text
+                task_text = (
+                    f"📌 <b>{task.title}</b>\n"
+                    f"<i>{format_task_time(task)}</i>"
+                )
+                tasks_text.append(task_text)
+                
+                # Add button for task details
+                builder.button(
+                    text=f"📋 {task.title}",
+                    callback_data=f"view_task_{task.task_id}"
+                )
+        
+        # Add back button
+        builder.button(
+            text=LEXICON_RU_BUTTONS['go_back'],
+            callback_data=NavigationCD(path="vmain").pack()
+        )
+        
+        # Сначала формируем список заданий
+        tasks_formatted = "\n\n".join(tasks_text)
+        # Затем подставляем его в шаблон
+        text = LEXICON_RU['vmain.mytasks'].format(tasks=tasks_formatted)
+    
+    # Adjust buttons layout - one button per row
+    builder.adjust(1)
+    
+    await call.message.edit_text(
+        text,
+        reply_markup=builder.as_markup(),
+        parse_mode="HTML"  # Добавляем parse_mode для HTML форматирования
+    )
+
+@router.callback_query(lambda c: c.data.startswith("view_task_"))
+async def show_volunteer_task_details(call: CallbackQuery, pool):
+    task_id = int(call.data.split("_")[2])
+    task = await Task.get_by_id(pool, task_id)
+    
+    if not task:
+        await call.answer("Задание не найдено!", show_alert=True)
+        return
+    
+    # Format task details
+    details = (
+        f"<b>{task.title}</b>\n\n"
+        f"📝 Описание: {task.description}\n"
+        f"🕒 Время: {format_task_time(task)}\n"
+    )
+    
+    text = LEXICON_RU['vmain.task_details'].format(details=details)
+    
+    # Create keyboard with back button
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text=LEXICON_RU_BUTTONS['go_back_to_tasks'],
+        callback_data=NavigationCD(path="vmain.mytasks").pack()
+    )
+    
+    await call.message.edit_text(
+        text,
+        reply_markup=builder.as_markup()
+    )
+
 @router.callback_query(NavigationCD.filter())
 async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):
     new_path = callback_data.path
     await call.message.edit_text(
-        f"*Вы в меню:* `{new_path}`",
-        parse_mode="Markdown",
+        text=LEXICON_RU[new_path],
+        parse_mode="HTML",  # Изменяем Markdown на HTML
         reply_markup=get_menu_markup(new_path)
     )

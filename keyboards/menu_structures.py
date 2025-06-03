@@ -23,15 +23,14 @@ admin_menu_structure: dict[str, list[tuple[str, str]]] = {
 }
 
 user_menu_structure: dict[str, list[tuple[str, str]]] = {
-    "main": [
-        (LEXICON["main.mytasks"],   "main.mytasks"),
-        (LEXICON["main.spots"],     "main.spots"),
-        (LEXICON["main.faq"],       "main.faq")
+    "vmain": [
+        (LEXICON["vmain.mytasks"],   "vmain.mytasks"),
+        (LEXICON["vmain.faq"],       "vmain.faq")
     ],
-    "main.mytasks": [
-        (LEXICON["main.mytasks.placeholder"], "main.mytasks.placeholder"),
+    "vmain.mytasks": [
+        (LEXICON["vmain.mytasks.placeholder"], "vmain.mytasks.placeholder"),
     ],
-    "main.faq": [
-        (LEXICON["main.faq.placeholder"], "main.faq.placeholder")
+    "vmain.faq": [
+        
     ]
 }

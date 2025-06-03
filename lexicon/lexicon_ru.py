@@ -24,7 +24,11 @@ LEXICON_RU: dict[str, str] = {
     'main.volunteers.add_volunteer': "Добавить волонтера",
     'main.volunteers.list':     "Список волонтеров",
     'task_list.select_day': "Выберите день для просмотра заданий:",
-    'task_list.day_tasks': "📋 Задания на день {}\n\n"
+    'task_list.day_tasks': "📋 Задания на день {}\n\n",
+    'vmain': "Главное меню волонтера",
+    'vmain.mytasks': "📋 Мои задания:\n\n{tasks}",
+    'vmain.mytasks.empty': "У вас пока нет назначенных заданий",
+    'vmain.task_details': "📋 Детали задания:\n\n{details}"
 }
 
 LEXICON_RU_BUTTONS: dict[str, str] = {
@@ -56,6 +60,12 @@ LEXICON_RU_BUTTONS: dict[str, str] = {
     'volunteer.add.cancel': "❌ Добавление волонтера отменено",
     'go_back': "◀️ Назад",
     'select_day': "📅 Выбрать день",
+    'vmain.mytasks':          "Мои задания",
+    'vmain.faq':                    "FAQ",
+    'vmain.mytasks.placeholder':    "PALCEHOLDER",
+    'vmain.mytasks': "📋 Мои задания",
+    'task_details': "👁 Подробнее",
+    'go_back_to_tasks': "◀️ К списку заданий"
 }
 
 LEXICON_COMMANDS_RU: dict[str, str] = {
@@ -65,7 +75,8 @@ LEXICON_COMMANDS_RU: dict[str, str] = {
     '/main_menu': "Главное меню",
     '/add_user': "/add_user {username} {role}",
     '/set_debug_time': "/set_debug_time 1 12:30",
-    '/debug_status': "Show debug info"
+    '/debug_status': "Show debug info",
+    '/debug_assign': "/debug_assign volunteer_id task_id - Create assignment for testing",
 }
 
 LEXICON_VOLUNTEER_RU: dict[str, str] = {
