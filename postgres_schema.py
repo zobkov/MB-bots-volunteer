@@ -60,6 +60,15 @@ async def create_tables(pool: asyncpg.Pool):
             )
         ''')
 
+        # Pending Users table
+        await conn.execute('''
+            CREATE TABLE IF NOT EXISTS pending_users (
+                tg_username  TEXT    PRIMARY KEY,
+                name        TEXT    NOT NULL,
+                role        TEXT    NOT NULL
+            )
+        ''')
+
 async def main():
     config = load_config()
 

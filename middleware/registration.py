@@ -5,6 +5,7 @@ from aiogram.types import Message, TelegramObject
 from cachetools import TTLCache
 from datetime import timedelta
 from database.pg_model import User
+from database.pg_model import PendingUser
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,8 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
             return await handler(event, data)
             
         user_id = user.id
-        logger.debug(f"Processing user {user_id}")
+        username = user.username
+        logger.debug(f"Processing user {username} (id: {user_id})")
 
         # Check if role is in cache first
         if user_id in self.role_cache:
@@ -47,12 +49,28 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
             logger.debug(f"Role retrieved from cache for user {user_id}: {data['role']}")
             return await handler(event, data)
         
-        # If not in cache, query database
+        # If not in cache, first check in users table
         user_data = await User.get_by_tg_id(self.pool, user_id)
+        
         if not user_data:
-            logger.warning(f"Unauthorized access attempt from user {user_id}")
-            return None
-            
+            # Check in pending_users table
+            pending_user = await PendingUser.get_by_username(self.pool, username)
+            if pending_user:
+                # Create full user record
+                user_data = await User.create(
+                    self.pool,
+                    user_id,
+                    username,
+                    pending_user.name,
+                    pending_user.role
+                )
+                # Delete from pending_users
+                await PendingUser.delete(self.pool, username)
+                logger.info(f"User {username} transferred from pending to active users")
+            else:
+                logger.warning(f"Unauthorized access attempt from user {username} (id: {user_id})")
+                return None
+
         # Store in cache and data
         self.role_cache[user_id] = user_data.role
         data["role"] = user_data.role

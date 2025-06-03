@@ -3,8 +3,8 @@ LEXICON_RU: dict[str, str] = {
     'main_menu':            'это главное меню',
     'task_list':            "это меню всех заданий",
     'assignment_list':      "это меню всех назначений",
-    'main':   "Это главное меню!!\nТут можно посмотреть что да как тут!!!",
-    'main.tasks':               "Task list",
+    'main':   "Главное меню админской стороны. \nДоступно: список заданий, добавление заданий, изменение заданий, назначение волонтеров",
+    'main.tasks':               "Список заданий",
     'main.assignments':         "Assignments list",
     'main.assignments.list':    "Current assignments",
     'main.support':             "Support",
@@ -20,6 +20,9 @@ LEXICON_RU: dict[str, str] = {
     'assignments_list': 'Список назначений',
     'create_assignment': 'Создать назначение',
     'select_task_for_assignment': 'Выберите задание для назначения',
+    'main.volunteers':          "Волонтеры",
+    'main.volunteers.add_volunteer': "Добавить волонтера",
+    'main.volunteers.list':     "Список волонтеров"
 }
 
 LEXICON_RU_BUTTONS: dict[str, str] = {
@@ -32,13 +35,24 @@ LEXICON_RU_BUTTONS: dict[str, str] = {
     'main.faq':                 "FAQ",
     'main.mytasks.placeholder': "PLACEHOLDER FOR A TASK BUTTON",
     'main.faq.placeholder':     "PLACEHOLDER FOR A FAQ",
-    'main.tasks':               "Task list",
+    'main.tasks':               "Список заданий",
     'main.assignments':         "Assignments list",
     'main.assignments.list':    "Current assignments",
-    'main.support':             "Support",
-    'main.tasks.list':          "Current tasks",
-    'main.tasks.create_task':   "Create a task",
-    'main.assignments.create_assignemnt':   "Create an assignment"
+    'main.support':             "Тех. поддержка",
+    'main.tasks.list':          "Текущие задания",
+    'main.tasks.create_task':   "Создать задание",
+    'main.assignments.create_assignemnt':   "Create an assignment",
+    'main.volunteers':          "Волонтеры",
+    'main.volunteers.add_volunteer': "Добавить волонтера",
+    'main.volunteers.list':     "Список волонтеров",
+    'main.volunteers.active': "👥 Активные волонтеры",
+    'main.volunteers.pending': "⏳ Волонтеры в ожидании",
+    'volunteer.add.username': "Введите username пользователя (без @):",
+    'volunteer.add.name': "Введите полное имя волонтера:",
+    'volunteer.add.confirm': "Подтвердите добавление волонтера:\nUsername: @{}\nИмя: {}\n\nВсе верно?",
+    'volunteer.add.success': "✅ Волонтер успешно добавлен",
+    'volunteer.add.cancel': "❌ Добавление волонтера отменено",
+    'go_back': "◀️ Назад"
 }
 
 LEXICON_COMMANDS_RU: dict[str, str] = {
@@ -49,4 +63,15 @@ LEXICON_COMMANDS_RU: dict[str, str] = {
     '/add_user': "/add_user {username} {role}",
     '/set_debug_time': "/set_debug_time 1 12:30",
     '/debug_status': "Show debug info"
+}
+
+LEXICON_VOLUNTEER_RU: dict[str, str] = {
+    'add.username': "Введите username пользователя (без @):",
+    'add.name': "Введите полное имя волонтера:",
+    'add.confirm': "Подтвердите добавление волонтера:\nUsername: @{}\nИмя: {}\n\nВсе верно?",
+    'add.success': "✅ Волонтер успешно добавлен",
+    'add.cancel': "❌ Добавление волонтера отменено",
+    'list.active': "👥 Активные волонтеры:\n\n{volunteers}",
+    'list.pending': "⏳ Волонтеры в ожидании:\n\n{volunteers}",
+    'list.empty': "Список пуст"
 }

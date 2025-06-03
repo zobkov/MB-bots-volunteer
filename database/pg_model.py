@@ -70,6 +70,19 @@ class User:
             )
             return [User(**dict(row)) for row in rows]
 
+    @staticmethod
+    async def get_by_role_and_status(pool, role: str, status: str) -> List['User']:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                """
+                SELECT * FROM users 
+                WHERE role = $1 AND status = $2
+                ORDER BY name
+                """,
+                role, status
+            )
+            return [User(**dict(row)) for row in rows]
+
 @dataclass
 class Task:
     task_id: Optional[int]
@@ -431,3 +444,60 @@ class Assignment:
             if row:
                 return Assignment(**dict(row))
         return None
+
+@dataclass
+class PendingUser:
+    tg_username: str
+    name: str
+    role: str
+
+    @staticmethod
+    async def create(pool: asyncpg.Pool, tg_username: str, name: str, role: str) -> 'PendingUser':
+        async with pool.acquire() as conn:
+            await conn.execute(
+                '''
+                INSERT INTO pending_users (tg_username, name, role) 
+                VALUES ($1, $2, $3)
+                ON CONFLICT (tg_username) DO UPDATE 
+                SET name = $2, role = $3
+                ''',
+                tg_username, name, role
+            )
+        return PendingUser(tg_username=tg_username, name=name, role=role)
+
+    @staticmethod
+    async def get_by_username(pool: asyncpg.Pool, tg_username: str) -> Optional['PendingUser']:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                'SELECT * FROM pending_users WHERE tg_username = $1',
+                tg_username
+            )
+            if row:
+                return PendingUser(
+                    tg_username=row['tg_username'],
+                    name=row['name'],
+                    role=row['role']
+                )
+        return None
+
+    @staticmethod
+    async def delete(pool: asyncpg.Pool, tg_username: str) -> bool:
+        async with pool.acquire() as conn:
+            result = await conn.execute(
+                'DELETE FROM pending_users WHERE tg_username = $1',
+                tg_username
+            )
+            return 'DELETE 1' in result
+
+    @staticmethod
+    async def get_all(pool: asyncpg.Pool) -> List['PendingUser']:
+        """Get all pending users."""
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                '''
+                SELECT * FROM pending_users
+                WHERE role = 'volunteer'
+                ORDER BY name
+                '''
+            )
+            return [PendingUser(**dict(row)) for row in rows]
