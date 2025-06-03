@@ -8,13 +8,14 @@ from aiogram.fsm.context import FSMContext
 from typing import Union
 
 from states.states import FSMTaskEdit
-from lexicon.lexicon_ru import LEXICON_RU 
+from lexicon.lexicon_ru import LEXICON_RU, LEXICON_RU_BUTTONS
 from handlers.callbacks import NavigationCD, TaskActionCD
 from keyboards.admin import get_menu_markup
 from keyboards.user import get_menu_markup as user_get_menu_markup
 from database.pg_model import User, Task, Assignment
 from filters.roles import IsAdmin
 from utils.event_time import EventTimeManager
+from utils.formatting import format_task_time
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +70,7 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
     
     for task, start_time in task_times:
         text += f"📌 <b>{task.title}</b>\n"
-        text += f"<i>День {task.start_day} {task.start_time} - День {task.end_day} {task.end_time}</i>\n"
+        text += f"<i>{format_task_time(task)}</i>\n"
         
         # Add volunteers information
         assignments = await Assignment.get_by_task(pool, task.task_id)
@@ -85,7 +86,7 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
             
         text += "\n---\n\n"
 
-    # Build keyboard with sorted tasks
+    # Build keyboard with sorted tasks and day selection
     builder = InlineKeyboardBuilder()
     for task in active_tasks:  # Use sorted tasks list
         builder.button(
@@ -94,11 +95,103 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
         )
     
     builder.button(
+        text=LEXICON_RU_BUTTONS['select_day'],
+        callback_data="select_day_for_tasks"
+    )
+    builder.button(
         text="◀️ Назад",
         callback_data=NavigationCD(path="main.tasks").pack()
     )
     
     builder.adjust(1)
+    await call.message.edit_text(text, reply_markup=builder.as_markup())
+
+@router.callback_query(lambda c: c.data == "select_day_for_tasks")
+async def show_day_selection(call: CallbackQuery, event_manager: EventTimeManager):
+    builder = InlineKeyboardBuilder()
+    
+    # Add buttons for all event days
+    for day in range(1, event_manager.days_count + 1):
+        builder.button(
+            text=f"День {day}",
+            callback_data=f"show_tasks_day_{day}"
+        )
+    
+    builder.button(
+        text="◀️ Назад",
+        callback_data=NavigationCD(path="main.tasks.list").pack()
+    )
+    
+    builder.adjust(2)  # Two buttons per row
+    
+    await call.message.edit_text(
+        LEXICON_RU['task_list.select_day'],
+        reply_markup=builder.as_markup()
+    )
+
+@router.callback_query(lambda c: c.data.startswith("show_tasks_day_"))
+async def show_tasks_by_day(call: CallbackQuery, pool, event_manager: EventTimeManager):
+    day = int(call.data.split("_")[-1])
+    
+    # Get all tasks for the selected day
+    tasks = await Task.get_all(pool)
+    day_tasks = [task for task in tasks if task.start_day == day or task.end_day == day]
+    
+    # Sort tasks by start time
+    day_tasks.sort(key=lambda x: x.start_time)
+    
+    text = LEXICON_RU['task_list.day_tasks'].format(day)
+    current_time = event_manager.current_time
+    
+    for task in day_tasks:
+        text += f"📌 <b>{task.title}</b>\n"
+        text += f"<i>{format_task_time(task)}</i>\n"
+        text += f"📝 {task.description}\n"
+        
+        # Add volunteers information
+        assignments = await Assignment.get_by_task(pool, task.task_id)
+        active_assignments = [a for a in assignments if a.status != 'cancelled']
+        
+        if active_assignments:
+            text += "👥 Волонтеры:\n"
+            for assignment in active_assignments:
+                volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
+                text += f"  • {volunteer.name} (@{volunteer.tg_username})\n"
+        else:
+            text += "❌ Нет назначенных волонтеров\n"
+            
+        text += "\n---\n\n"
+    
+    if not day_tasks:
+        text += "На этот день заданий нет."
+    
+    builder = InlineKeyboardBuilder()
+    
+    # Add buttons for active tasks
+    for task in day_tasks:
+        start_abs, end_abs = task.get_absolute_times(event_manager)
+        if end_abs > current_time:  # Only add button for active tasks
+            builder.button(
+                text=f"📋 {task.title}",
+                callback_data=TaskActionCD(action="view", task_id=task.task_id).pack()
+            )
+    
+    # Navigation buttons
+    builder.button(
+        text="📅 Другой день",
+        callback_data="select_day_for_tasks"
+    )
+    builder.button(
+        text="◀️ Назад",
+        callback_data=NavigationCD(path="main.tasks.list").pack()
+    )
+    
+    # Adjust buttons layout - one task button per row, navigation buttons together
+    if day_tasks:
+        builder.adjust(1, 2)
+    else:
+        builder.adjust(2)
+    
     await call.message.edit_text(text, reply_markup=builder.as_markup())
 
 @router.callback_query(TaskActionCD.filter(F.action == "view"))
@@ -115,8 +208,7 @@ async def show_task_details(update: Union[Message, CallbackQuery], callback_data
     text = f"📋 Детали задания:\n\n"
     text += f"Название: {task.title}\n"
     text += f"Описание: {task.description}\n"
-    text += f"Начало: День {task.start_day} {task.start_time}\n"
-    text += f"Конец: День {task.end_day} {task.end_time}\n"
+    text += f"Время: {format_task_time(task)}\n"
     text += f"Статус: {task.status}\n\n"
 
     # Get and display assigned volunteers

@@ -22,7 +22,9 @@ LEXICON_RU: dict[str, str] = {
     'select_task_for_assignment': 'Выберите задание для назначения',
     'main.volunteers':          "Волонтеры",
     'main.volunteers.add_volunteer': "Добавить волонтера",
-    'main.volunteers.list':     "Список волонтеров"
+    'main.volunteers.list':     "Список волонтеров",
+    'task_list.select_day': "Выберите день для просмотра заданий:",
+    'task_list.day_tasks': "📋 Задания на день {}\n\n"
 }
 
 LEXICON_RU_BUTTONS: dict[str, str] = {
@@ -52,7 +54,8 @@ LEXICON_RU_BUTTONS: dict[str, str] = {
     'volunteer.add.confirm': "Подтвердите добавление волонтера:\nUsername: @{}\nИмя: {}\n\nВсе верно?",
     'volunteer.add.success': "✅ Волонтер успешно добавлен",
     'volunteer.add.cancel': "❌ Добавление волонтера отменено",
-    'go_back': "◀️ Назад"
+    'go_back': "◀️ Назад",
+    'select_day': "📅 Выбрать день",
 }
 
 LEXICON_COMMANDS_RU: dict[str, str] = {

@@ -9,6 +9,7 @@ from handlers.callbacks import NavigationCD
 from database.pg_model import User, PendingUser, Assignment, Task
 from lexicon.lexicon_ru import LEXICON_RU_BUTTONS as LEXICON, LEXICON_VOLUNTEER_RU
 from filters.roles import IsAdmin
+from utils.formatting import format_task_time
 
 router = Router()
 
@@ -87,16 +88,9 @@ async def show_active_volunteers(call: CallbackQuery, pool):
             
             if active_assignments:
                 for assignment in active_assignments:
-                    # Получаем информацию о задании
                     task = await Task.get_by_id(pool, assignment.task_id)
                     if task:
-                        # Форматируем время
-                        time_str = (f"День {assignment.start_day} {assignment.start_time} - "
-                                  f"День {assignment.end_day} {assignment.end_time}" 
-                                  if assignment.start_day != assignment.end_day else
-                                  f"День {assignment.start_day} {assignment.start_time} - {assignment.end_time}")
-                        
-                        section.append(f"  📋 {task.title} - {time_str}")
+                        section.append(f"  📋 {task.title} - {format_task_time(task)}")
             
             volunteer_sections.append("\n".join(section))
         

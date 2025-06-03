@@ -12,6 +12,7 @@ from handlers.callbacks import NavigationCD, TaskActionCD, TaskEditCD, TaskEditC
 from filters.roles import IsAdmin
 from utils.event_time import EventTime, EventTimeManager
 from handlers.admin import show_task_details
+from utils.formatting import format_task_time
 
 logger = logging.getLogger(__name__)
 
@@ -47,8 +48,7 @@ async def edit_task(call: CallbackQuery, callback_data: TaskActionCD, pool, stat
     text += f"Текущие значения:\n"
     text += f"Название: {task.title}\n"
     text += f"Описание: {task.description}\n"
-    text += f"Начало: День {task.start_day} {task.start_time}\n"
-    text += f"Конец: День {task.end_day} {task.end_time}\n"
+    text += f"Время: {format_task_time(task)}\n"
 
     builder = InlineKeyboardBuilder()
     fields = [
