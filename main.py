@@ -15,6 +15,7 @@ from config_data.config import Config, load_config
 from utils.logger.logging_settings import logging_config
 from database.pg_model import create_pool  
 from middleware.registration import RoleAssigmmentMiddleware
+from middleware.debug_auth import DebugAuthMiddleware
 from utils.event_time import EventTimeManager
 
 logging.config.dictConfig(logging_config)
@@ -62,6 +63,8 @@ async def main() -> None:
 
     # Register middleware for all update types
     dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["pool"]))  
+    dp.update.outer_middleware(DebugAuthMiddleware(dp["pool"], config.debug_auth))
+    logger.info("Registered DebugAuthMiddleware")
 
     await set_main_menu(bot)
     logger.debug("Set main menu")
