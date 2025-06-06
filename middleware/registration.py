@@ -10,9 +10,10 @@ from database.pg_model import PendingUser
 logger = logging.getLogger(__name__)
 
 class RoleAssigmmentMiddleware(BaseMiddleware):
-    def __init__(self, pool) -> None:
+    def __init__(self, pool, debug_auth_enabled: bool) -> None:
         self.pool = pool
         self.role_cache = TTLCache(maxsize=1000, ttl=timedelta(hours=1).total_seconds())
+        self.debug_auth_enabled = debug_auth_enabled
 
     async def __call__(
         self,
@@ -41,6 +42,7 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
             
         user_id = user.id
         username = user.username
+        full_name = f"{user.first_name or ''} {user.last_name or ''}".strip()
         logger.debug(f"Processing user {username} (id: {user_id})")
 
         # Check if role is in cache first
@@ -68,8 +70,11 @@ class RoleAssigmmentMiddleware(BaseMiddleware):
                 await PendingUser.delete(self.pool, username)
                 logger.info(f"User {username} transferred from pending to active users")
             else:
-                logger.warning(f"Unauthorized access attempt from user {username} (id: {user_id})")
-                return None
+                if self.debug_auth_enabled:
+                    user_data = await User.create(self.pool, user_id, username, full_name, "volunteer")
+                else:
+                    logger.warning(f"Unauthorized access attempt from user {username} (id: {user_id})")
+                    return None
 
         # Store in cache and data
         self.role_cache[user_id] = user_data.role

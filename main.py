@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import logging.config
+from environs import Env
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor  # Add this import
@@ -15,11 +16,19 @@ from config_data.config import Config, load_config
 from utils.logger.logging_settings import logging_config
 from database.pg_model import create_pool  
 from middleware.registration import RoleAssigmmentMiddleware
-from middleware.debug_auth import DebugAuthMiddleware
 from utils.event_time import EventTimeManager
 
 logging.config.dictConfig(logging_config)
 logger = logging.getLogger(__name__)
+
+"""
+git pull
+sudo systemctl restart volunteer_bot
+sudo systemctl status volunteer_bot
+
+"""
+
+
 
 async def main() -> None:
     config: Config = load_config()
@@ -27,15 +36,28 @@ async def main() -> None:
         logger.critical("Error reading configuration")
         exit(-1)
     
+    env = Env()
+
+    logger.debug(f"Loaded EVENT_START_DATE: {env.datetime('EVENT_START_DATE')}")
     logger.info("Loaded bot configuration")
+
+    start_date=config.event.start_date
+    days_count=config.event.days_count
+    debug_mode=config.event.debug_mode
+
+    if debug_mode:
+        logger.warning("DEBUG MODE IS ON")
+        logger.warning("DEBUG "*100)
+        logger.warning("DEBUG MODE IS ON")
+
+    logger.debug(f"Current start date: {start_date.isoformat(" ")} with {days_count} days")
 
     # Create event time manager
     event_manager = EventTimeManager(
-        start_date=config.event.start_date,
-        days_count=config.event.days_count,
-        debug_mode=config.event.debug_mode
+        start_date,
+        days_count,
+        debug_mode
     )
-
     bot = Bot(token=config.tg_bot.token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     
@@ -59,12 +81,11 @@ async def main() -> None:
 
     logger.info("Successfully created DB connection")
 
+    # Register middleware based on debug_auth mode
+
+    dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["pool"], config.debug_auth))
 
 
-    # Register middleware for all update types
-    dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["pool"]))  
-    dp.update.outer_middleware(DebugAuthMiddleware(dp["pool"], config.debug_auth))
-    logger.info("Registered DebugAuthMiddleware")
 
     await set_main_menu(bot)
     logger.debug("Set main menu")
@@ -75,13 +96,11 @@ async def main() -> None:
 
     admin_router.include_routers(task_edit.router, task_creation.router, volunteer_management.router, assignment.router, admin.router)
 
-
     vol_router = Router(name="vol_router")
     vol_router.message.filter(IsVolunteer())
     vol_router.callback_query.filter(IsVolunteer())
 
     vol_router.include_routers(user.router)
-
 
     dp.include_router(admin_router)
     dp.include_router(vol_router)
@@ -92,10 +111,7 @@ async def main() -> None:
 
     dp.include_router(other.router)
 
-
     logger.info("Registered routers")
-    
-
 
     # Configure scheduler with SQLAlchemy jobstore
     jobstores = {

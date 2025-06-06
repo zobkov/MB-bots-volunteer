@@ -1,4 +1,10 @@
 import sys
+from datetime import datetime
+import os
+
+# Указываем папку для логов
+LOG_DIR = os.path.join(os.path.dirname(__file__), '../../logs')
+os.makedirs(LOG_DIR, exist_ok=True)  # Создаем папку, если она не существует
 
 logging_config = {
     'version': 1,
@@ -14,20 +20,26 @@ logging_config = {
             'class': 'logging.StreamHandler',
             'formatter': 'formatter_2',
             'stream': sys.stdout
+        },
+        'file': {
+            'class': 'logging.FileHandler',
+            'formatter': 'formatter_2',
+            'filename': os.path.join(LOG_DIR, f'Log {datetime.now().strftime("%d.%m.%Y")}.log'),
+            'mode': 'a',  # Append mode
         }
     },
     'root': {
-        'handlers': ['stdout'],
+        'handlers': ['stdout', 'file'],
         'level': 'DEBUG'
     },
     'loggers': {
         'aiogram': {
-            'handlers': ['stdout'],
+            'handlers': ['stdout', 'file'],
             'level': 'INFO',  # Keep default level for general aiogram logs
             'propagate': False
         },
         'aiogram.event': {
-            'handlers': ['stdout'],
+            'handlers': ['stdout', 'file'],
             'level': 'DEBUG',  # Set only event handling logs to DEBUG
             'propagate': False
         }
