@@ -178,7 +178,6 @@ cython_debug/
 
 # Test-files
 test-generator/src/db-test.py
-config.py
 
 
 *.db
