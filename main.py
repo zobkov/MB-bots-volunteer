@@ -59,12 +59,13 @@ async def main() -> None:
 
     logger.info("Successfully created DB connection")
 
-
-
-    # Register middleware for all update types
-    dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["pool"]))  
-    dp.update.outer_middleware(DebugAuthMiddleware(dp["pool"], config.debug_auth))
-    logger.info("Registered DebugAuthMiddleware")
+    # Register middleware based on debug_auth mode
+    if config.debug_auth:
+        dp.update.outer_middleware(DebugAuthMiddleware(dp["pool"], config.debug_auth))
+        logger.info("Registered DebugAuthMiddleware")
+    else:
+        dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["pool"]))
+        logger.info("Registered RoleAssigmmentMiddleware")
 
     await set_main_menu(bot)
     logger.debug("Set main menu")
@@ -75,13 +76,11 @@ async def main() -> None:
 
     admin_router.include_routers(task_edit.router, task_creation.router, volunteer_management.router, assignment.router, admin.router)
 
-
     vol_router = Router(name="vol_router")
     vol_router.message.filter(IsVolunteer())
     vol_router.callback_query.filter(IsVolunteer())
 
     vol_router.include_routers(user.router)
-
 
     dp.include_router(admin_router)
     dp.include_router(vol_router)
@@ -92,10 +91,7 @@ async def main() -> None:
 
     dp.include_router(other.router)
 
-
     logger.info("Registered routers")
-    
-
 
     # Configure scheduler with SQLAlchemy jobstore
     jobstores = {
