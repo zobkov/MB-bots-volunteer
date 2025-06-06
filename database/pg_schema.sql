@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS assignment (
     start_time   TEXT NOT NULL,
     end_day      INTEGER NOT NULL,
     end_time     TEXT NOT NULL,
-    status       TEXT NOT NULL
+    status       TEXT NOT NULL,
+    notification_scheduled BOOLEAN DEFAULT FALSE
 );
 
 -- Audit log table
