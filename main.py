@@ -21,6 +21,15 @@ from utils.event_time import EventTimeManager
 logging.config.dictConfig(logging_config)
 logger = logging.getLogger(__name__)
 
+"""
+git pull
+sudo systemctl restart volunteer_bot
+sudo systemctl status volunteer_bot
+
+"""
+
+
+
 async def main() -> None:
     config: Config = load_config()
     if config == -1:
