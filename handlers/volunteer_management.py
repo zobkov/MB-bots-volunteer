@@ -83,6 +83,9 @@ async def show_active_volunteers(call: CallbackQuery, pool):
             assignments = await Assignment.get_by_volunteer(pool, vol.tg_id)
             active_assignments = [a for a in assignments if a.status != 'cancelled']
             
+            # Сортируем задания по времени начала
+            active_assignments.sort(key=lambda a: (a.start_day, a.start_time))
+            
             # Формируем секцию для волонтера
             section = [f"• {vol.name} (@{vol.tg_username})"]
             
