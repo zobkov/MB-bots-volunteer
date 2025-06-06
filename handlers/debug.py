@@ -11,6 +11,7 @@ from utils.event_time import EventTimeManager
 
 router = Router()
 
+
 @router.message(Command("debug_status"))
 async def debug_status(message: Message, event_manager: EventTimeManager):
     """Показывает текущий статус времени"""
@@ -172,3 +173,4 @@ async def debug_assign_handler(message: Message, command: Command, pool=None, sc
         await message.reply("❌ Invalid format. Usage: /debug_assign volunteer_id task_id")
     except Exception as e:
         await message.reply(f"❌ Error: {str(e)}")
+

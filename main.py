@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import logging.config
+from environs import Env
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.asyncio import AsyncIOExecutor  # Add this import
@@ -27,15 +28,28 @@ async def main() -> None:
         logger.critical("Error reading configuration")
         exit(-1)
     
+    env = Env()
+
+    logger.debug(f"Loaded EVENT_START_DATE: {env.datetime('EVENT_START_DATE')}")
     logger.info("Loaded bot configuration")
+
+    start_date=config.event.start_date
+    days_count=config.event.days_count
+    debug_mode=config.event.debug_mode
+
+    if debug_mode:
+        logger.warning("DEBUG MODE IS ON")
+        logger.warning("DEBUG "*100)
+        logger.warning("DEBUG MODE IS ON")
+
+    logger.debug(f"Current start date: {start_date.isoformat(" ")} with {days_count} days")
 
     # Create event time manager
     event_manager = EventTimeManager(
-        start_date=config.event.start_date,
-        days_count=config.event.days_count,
-        debug_mode=config.event.debug_mode
+        start_date,
+        days_count,
+        debug_mode
     )
-
     bot = Bot(token=config.tg_bot.token, default=DefaultBotProperties(parse_mode=ParseMode.HTML))
     dp = Dispatcher()
     
@@ -60,12 +74,10 @@ async def main() -> None:
     logger.info("Successfully created DB connection")
 
     # Register middleware based on debug_auth mode
-    if config.debug_auth:
-        dp.update.outer_middleware(DebugAuthMiddleware(dp["pool"], config.debug_auth))
-        logger.info("Registered DebugAuthMiddleware")
-    else:
-        dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["pool"]))
-        logger.info("Registered RoleAssigmmentMiddleware")
+
+    dp.update.outer_middleware(RoleAssigmmentMiddleware(dp["pool"], config.debug_auth))
+
+
 
     await set_main_menu(bot)
     logger.debug("Set main menu")
