@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import List, Optional
 from utils.event_time import EventTime, EventTimeManager
+import logging
 
 async def create_pool(**kwargs) -> asyncpg.Pool:
     """Create a connection pool for PostgreSQL"""
@@ -229,6 +230,26 @@ class Task:
                 )
             return None
 
+    @staticmethod
+    async def delete(pool, task_id: int) -> bool:
+        logger = logging.getLogger(__name__)
+        from database.pg_model import Assignment  # Avoid circular import
+        async with pool.acquire() as conn:
+            try:
+                # First, delete all assignments for this task
+                await Assignment.delete_by_task(pool, task_id)
+                # Then, delete the task itself
+                result = await conn.execute("DELETE FROM task WHERE task_id = $1", task_id)
+                if result == "DELETE 1":
+                    logger.info(f"Task {task_id} deleted successfully.")
+                    return True
+                else:
+                    logger.warning(f"Task {task_id} not found or not deleted.")
+                    return False
+            except Exception as e:
+                logger.error(f"Error deleting task {task_id}: {e}")
+                return False
+
 @dataclass
 class Assignment:
     assign_id: Optional[int]
@@ -444,6 +465,19 @@ class Assignment:
             if row:
                 return Assignment(**dict(row))
         return None
+
+    @staticmethod
+    async def delete_by_task(pool, task_id: int) -> int:
+        logger = logging.getLogger(__name__)
+        async with pool.acquire() as conn:
+            try:
+                result = await conn.execute("DELETE FROM assignment WHERE task_id = $1", task_id)
+                deleted_count = int(result.split()[-1]) if "DELETE" in result else 0
+                logger.info(f"Deleted {deleted_count} assignments for task {task_id}")
+                return deleted_count
+            except Exception as e:
+                logger.error(f"Error deleting assignments for task {task_id}: {e}")
+                return 0
 
 @dataclass
 class PendingUser:

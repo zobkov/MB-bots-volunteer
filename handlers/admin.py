@@ -257,3 +257,33 @@ async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):
         parse_mode="Markdown",
         reply_markup=get_menu_markup(new_path)
     )
+
+from aiogram.types import CallbackQuery
+from aiogram.utils.keyboard import InlineKeyboardBuilder
+from handlers.callbacks import TaskActionCD
+
+@router.callback_query(TaskActionCD.filter(F.action == "delete"))
+async def confirm_delete_task(call: CallbackQuery, callback_data: TaskActionCD, pool):
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="❌ Отмена",
+        callback_data=TaskActionCD(action="view", task_id=callback_data.task_id).pack()
+    )
+    builder.button(
+        text="✅ Подтвердить удаление",
+        callback_data=f"confirm_delete_{callback_data.task_id}"
+    )
+    await call.message.edit_text(
+        f"Вы уверены, что хотите удалить это задание?",
+        reply_markup=builder.as_markup()
+    )
+
+@router.callback_query(lambda c: c.data.startswith("confirm_delete_"))
+async def delete_task(call: CallbackQuery, pool):
+    task_id = int(call.data.split("_")[-1])
+    from database.pg_model import Task
+    deleted = await Task.delete(pool, task_id)
+    if deleted:
+        await call.message.edit_text("✅ Задание удалено.")
+    else:
+        await call.message.edit_text("❌ Ошибка при удалении задания.")
