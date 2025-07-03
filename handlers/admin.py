@@ -254,7 +254,7 @@ async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):
     new_path = callback_data.path
     await call.message.edit_text(
         LEXICON_RU[new_path],
-        parse_mode="Markdown",
+        parse_mode="HTML",  # <-- Исправлено!
         reply_markup=get_menu_markup(new_path)
     )
 

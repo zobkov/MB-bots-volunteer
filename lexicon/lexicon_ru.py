@@ -7,7 +7,18 @@ LEXICON_RU: dict[str, str] = {
     'main.tasks':               "Список заданий",
     'main.assignments':         "Assignments list",
     'main.assignments.list':    "Current assignments",
-    'main.support':             "Support",
+    'main.support':             (
+                                "Если меню не вернулось после каких-то действий, то введи /start.\n"
+                                "Если что-то зависло — введи /start\n\n"
+                                "Для того, чтобы поменять назначение волонтеров на задачу, нажми на кнопку <b>Создать назначение</b>. "
+                                "После этого нажми на каждого волонтера, который нужен.\n"
+                                "<b>ВНИМАНИЕ!</b> После нажатия на <b>Создать назначение</b>, назначения всегда сбрасываются. "
+                                "Так что нажимай на всех волонтеров повторно.\n\n"
+                                "Чтобы добавить волонтера, нужно занести его юзернейм в список ожидания — чтобы система его пропустила: "
+                                "<code>/add_user {username} {role('admin'/'volunteer')}</code>\n"
+                                "Либо кнопка добавить волонтера в меню волонтеров — так надежнее."
+                                "\n\n\nЛюбые вопросы: @zobko"
+                                ),
     'main.tasks.list':          "Current tasks",
     'task_creation.title':      "Please enter the task title:",
     'task_creation.description':"Please enter task description:",
