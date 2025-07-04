@@ -9,7 +9,7 @@ from filters.roles import IsVolunteer
 from handlers.callbacks import NavigationCD
 from keyboards.user import get_menu_markup
 from keyboards.admin import get_menu_markup as get_admin_menu_markup
-from database.pg_model import User, Assignment, Task
+from database.pg_model import User, Assignment, Task, SpotTaskResponse
 from utils.formatting import format_task_time
 
 logger = logging.getLogger(__name__)
@@ -131,6 +131,32 @@ async def show_volunteer_task_details(call: CallbackQuery, pool):
         text,
         reply_markup=builder.as_markup()
     )
+
+@router.callback_query(IsVolunteer(), F.data.startswith("spot_accept_") | F.data.startswith("spot_decline_"))
+async def handle_spot_response(call: CallbackQuery, pool, bot):
+    action, spot_task_id = call.data.split("_")[1:]
+    volunteer_id = call.from_user.id
+    response = "accepted" if action == "accept" else "declined"
+
+    # Save response to DB
+    await SpotTaskResponse.create(pool, int(spot_task_id), volunteer_id, response)
+    await call.answer("Ответ отправлен!")
+
+    # Notify all admins
+    admins = await User.get_by_role(pool, "admin")
+    volunteer = await User.get_by_tg_id(pool, volunteer_id)
+    for admin in admins:
+        await bot.send_message(
+            admin.tg_id,
+            f"Волонтер {volunteer.name} (@{volunteer.tg_username}) {'принял' if response == 'accepted' else 'отклонил'} срочное задание."
+        )
+    await bot.send_message(
+        257026813,
+        f"Волонтер {volunteer.name} (@{volunteer.tg_username}) {'принял' if response == 'accepted' else 'отклонил'} срочное задание."
+        )
+
+    # Optionally: schedule deletion of this message after expiry
+
 
 @router.callback_query(NavigationCD.filter())
 async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):

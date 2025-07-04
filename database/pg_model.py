@@ -535,3 +535,53 @@ class PendingUser:
                 '''
             )
             return [PendingUser(**dict(row)) for row in rows]
+        
+
+
+class SpotTask:
+    @staticmethod
+    async def create(pool, name: str, description: str, expires_at: datetime) -> int:
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                """
+                INSERT INTO spot_task (name, description, expires_at)
+                VALUES ($1, $2, $3)
+                RETURNING spot_task_id
+                """,
+                name, description, expires_at
+            )
+            return row["spot_task_id"]
+
+    @staticmethod
+    async def get(pool, spot_task_id: int):
+        async with pool.acquire() as conn:
+            return await conn.fetchrow(
+                "SELECT * FROM spot_task WHERE spot_task_id = $1", spot_task_id
+            )
+
+    @staticmethod
+    async def get_active(pool):
+        async with pool.acquire() as conn:
+            return await conn.fetch(
+                "SELECT * FROM spot_task WHERE expires_at > NOW()"
+            )
+
+class SpotTaskResponse:
+    @staticmethod
+    async def create(pool, spot_task_id: int, volunteer_id: int, response: str):
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                INSERT INTO spot_task_response (spot_task_id, volunteer_id, response)
+                VALUES ($1, $2, $3)
+                """,
+                spot_task_id, volunteer_id, response
+            )
+
+    @staticmethod
+    async def get_by_task(pool, spot_task_id: int):
+        async with pool.acquire() as conn:
+            return await conn.fetch(
+                "SELECT * FROM spot_task_response WHERE spot_task_id = $1",
+                spot_task_id
+            )

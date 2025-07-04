@@ -33,6 +33,7 @@ class Config:
     tg_bot: TgBot
     db: DatabaseConfig
     event: EventConfig
+    spot_duration: int
     debug_auth: bool = False  # Add this parameter
 
 def load_config() -> Config:
@@ -53,5 +54,6 @@ def load_config() -> Config:
             days_count=env.int("EVENT_DAYS_COUNT"),
             debug_mode=env.bool("DEBUG_MODE", False)
         ),
-        debug_auth=env.bool("DEBUG_AUTH", False)
+        debug_auth=env.bool("DEBUG_AUTH", False),
+        spot_duration=env.int("SPOT_TASK_EXPIRY_MINUTES", 30)
     )

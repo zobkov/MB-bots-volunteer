@@ -39,7 +39,8 @@ LEXICON_RU: dict[str, str] = {
     'vmain': "Главное меню волонтера",
     'vmain.mytasks': "📋 Мои задания:\n\n{tasks}",
     'vmain.mytasks.empty': "У вас пока нет назначенных заданий",
-    'vmain.task_details': "📋 Детали задания:\n\n{details}"
+    'vmain.task_details': "📋 Детали задания:\n\n{details}",
+    'main.tasks.create_spot_task': "Создать срочное задание"
 }
 
 LEXICON_RU_BUTTONS: dict[str, str] = {
@@ -58,6 +59,7 @@ LEXICON_RU_BUTTONS: dict[str, str] = {
     'main.support':             "Тех. поддержка",
     'main.tasks.list':          "Текущие задания",
     'main.tasks.create_task':   "Создать задание",
+    'main.tasks.create_spot_task': "Создать срочное задание",
     'main.assignments.create_assignemnt':   "Create an assignment",
     'main.volunteers':          "Волонтеры",
     'main.volunteers.add_volunteer': "Добавить волонтера",

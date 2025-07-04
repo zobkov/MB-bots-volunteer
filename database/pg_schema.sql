@@ -53,6 +53,24 @@ CREATE TABLE IF NOT EXISTS pending_users (
     role        TEXT    NOT NULL
 );
 
+-- Spot Tasks table
+CREATE TABLE IF NOT EXISTS spot_task (
+    spot_task_id   SERIAL PRIMARY KEY,
+    name           TEXT NOT NULL,
+    description    TEXT NOT NULL,
+    created_at     TIMESTAMP NOT NULL DEFAULT NOW(),
+    expires_at     TIMESTAMP NOT NULL
+);
+
+-- Spot Task Responses table
+CREATE TABLE IF NOT EXISTS spot_task_response (
+    response_id    SERIAL PRIMARY KEY,
+    spot_task_id   INTEGER NOT NULL REFERENCES spot_task(spot_task_id) ON DELETE CASCADE,
+    volunteer_id   BIGINT NOT NULL REFERENCES users(tg_id) ON DELETE CASCADE,
+    response       VARCHAR(16) NOT NULL CHECK (response IN ('accepted', 'declined')),
+    responded_at   TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Add indexes
 CREATE INDEX IF NOT EXISTS idx_task_status ON task(status);
 CREATE INDEX IF NOT EXISTS idx_assignment_status ON assignment(status);

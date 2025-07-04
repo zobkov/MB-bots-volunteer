@@ -35,11 +35,11 @@ async def main() -> None:
     if config == -1:
         logger.critical("Error reading configuration")
         exit(-1)
-    
-    env = Env()
 
-    logger.debug(f"Loaded EVENT_START_DATE: {env.datetime('EVENT_START_DATE')}")
+    logger.debug(f"Loaded EVENT_START_DATE: {config.event.start_date}")
     logger.info("Loaded bot configuration")
+
+
 
     start_date=config.event.start_date
     days_count=config.event.days_count
@@ -65,6 +65,8 @@ async def main() -> None:
 
     # Add event manager to dispatcher data
     dp["event_manager"] = event_manager
+
+    dp["spot_duration"] = config.spot_duration
     
     # Create PostgreSQL connection pool
     try:
@@ -111,6 +113,7 @@ async def main() -> None:
     dp.include_router(vol_router)
 
     if config.event.debug_mode:
+        dp["debug"]=True
         from handlers import debug
         dp.include_router(debug.router)
 
