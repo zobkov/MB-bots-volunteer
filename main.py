@@ -9,7 +9,7 @@ from apscheduler.executors.asyncio import AsyncIOExecutor  # Add this import
 from aiogram import Bot, Dispatcher, Router
 from aiogram.enums.parse_mode import ParseMode
 from aiogram.client.default import DefaultBotProperties
-from handlers import admin, other, user, task_creation, task_edit, assignment, volunteer_management
+from handlers import admin, other, user, task_creation, task_edit, assignment, volunteer_management, admin_start, vol_start
 from filters.roles import IsAdmin, IsVolunteer
 from keyboards.set_menu import set_main_menu
 from config_data.config import Config, load_config
@@ -94,11 +94,16 @@ async def main() -> None:
     admin_router.message.filter(IsAdmin())
     admin_router.callback_query.filter(IsAdmin())
 
+    admin_router.include_router(admin_start.router)
+    
     admin_router.include_routers(task_edit.router, task_creation.router, volunteer_management.router, assignment.router, admin.router)
+
 
     vol_router = Router(name="vol_router")
     vol_router.message.filter(IsVolunteer())
     vol_router.callback_query.filter(IsVolunteer())
+
+    vol_router.include_router(vol_start.router)
 
     vol_router.include_routers(user.router)
 
