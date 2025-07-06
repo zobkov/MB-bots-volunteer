@@ -120,8 +120,7 @@ async def process_end_time(message: Message, state: FSMContext, event_manager: E
             title=data['title'],
             description=data['description'],
             start_event_time=start_event_time,
-            end_event_time=end_event_time,
-            status='Unscheduled'
+            end_event_time=end_event_time
         )
         
         logger.info(f'Task created: id={task.task_id} by user {message.from_user.username} (id={message.from_user.id})')
@@ -135,8 +134,7 @@ async def process_end_time(message: Message, state: FSMContext, event_manager: E
             f"Начало: День {task.start_day} {task.start_time}\n"
             f"Конец: День {task.end_day} {task.end_time}\n"
             f"Абсолютное время начала: {start_abs.strftime('%Y-%m-%d %H:%M')}\n"
-            f"Абсолютное время конца: {end_abs.strftime('%Y-%m-%d %H:%M')}\n"
-            f"Статус: {task.status}",
+            f"Абсолютное время конца: {end_abs.strftime('%Y-%m-%d %H:%M')}\n",
             reply_markup=get_menu_markup("main.tasks")
         )
         await state.clear()

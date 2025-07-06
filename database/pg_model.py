@@ -4,6 +4,8 @@ from datetime import datetime
 from typing import List, Optional
 from utils.event_time import EventTime, EventTimeManager
 import logging
+import csv
+from io import StringIO
 
 async def create_pool(**kwargs) -> asyncpg.Pool:
     """Create a connection pool for PostgreSQL"""
@@ -93,17 +95,14 @@ class Task:
     start_time: str
     end_day: int
     end_time: str
-    status: str
     created_at: datetime
     updated_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
 
     @staticmethod
     async def create(pool: asyncpg.Pool, title: str, description: str, 
-                    start_event_time: EventTime, end_event_time: EventTime, 
-                    status: str) -> 'Task':
+                    start_event_time: EventTime, end_event_time: EventTime) -> 'Task':
         created_at = datetime.now()
-        
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 '''
@@ -111,17 +110,16 @@ class Task:
                     title, description, 
                     start_day, start_time, 
                     end_day, end_time,
-                    status, created_at
+                    created_at
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING *
                 ''',
                 title, description,
                 start_event_time.day, start_event_time.time,
                 end_event_time.day, end_event_time.time,
-                status, created_at
+                created_at
             )
-            
             return Task(
                 task_id=row['task_id'],
                 title=row['title'],
@@ -130,7 +128,6 @@ class Task:
                 start_time=row['start_time'],
                 end_day=row['end_day'],
                 end_time=row['end_time'],
-                status=row['status'],
                 created_at=row['created_at'],
                 updated_at=row['updated_at'],
                 completed_at=row['completed_at']
@@ -155,7 +152,6 @@ class Task:
                     start_time=row['start_time'],
                     end_day=row['end_day'],
                     end_time=row['end_time'],
-                    status=row['status'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at'],
                     completed_at=row['completed_at']
@@ -175,7 +171,6 @@ class Task:
                     start_time=row['start_time'],
                     end_day=row['end_day'],
                     end_time=row['end_time'],
-                    status=row['status'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at'],
                     completed_at=row['completed_at']
@@ -223,7 +218,6 @@ class Task:
                     start_time=row['start_time'],
                     end_day=row['end_day'],
                     end_time=row['end_time'],
-                    status=row['status'],
                     created_at=row['created_at'],
                     updated_at=row['updated_at'],
                     completed_at=row['completed_at']
@@ -250,10 +244,67 @@ class Task:
                 logger.error(f"Error deleting task {task_id}: {e}")
                 return False
 
+    @staticmethod
+    async def import_from_csv(pool, csv_content: str):
+        """
+        Импортирует задачи из CSV-строки.
+        Формат CSV: title,description,start_day,start_time,end_day,end_time
+        """
+        # Удаляем BOM и лишние пробелы
+        csv_content = csv_content.lstrip('\ufeff').strip()
+        reader = csv.DictReader(StringIO(csv_content))
+        async with pool.acquire() as conn:
+            for row in reader:
+                # Пропускаем пустые строки
+                if not row or not row.get('title'):
+                    continue
+                await conn.execute(
+                    '''
+                    INSERT INTO task (title, description, start_day, start_time, end_day, end_time, created_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, NOW())
+                    ON CONFLICT (title) DO UPDATE SET
+                        description=EXCLUDED.description,
+                        start_day=EXCLUDED.start_day,
+                        start_time=EXCLUDED.start_time,
+                        end_day=EXCLUDED.end_day,
+                        end_time=EXCLUDED.end_time,
+                        updated_at=NOW()
+                    ''',
+                    row['title'].strip(),
+                    row['description'].strip(),
+                    int(row['start_day']),
+                    row['start_time'].strip(),
+                    int(row['end_day']),
+                    row['end_time'].strip()
+                )
+
+    @staticmethod
+    async def export_to_csv(pool) -> str:
+        """
+        Выгружает все задачи в CSV-строку.
+        """
+        async with pool.acquire() as conn:
+            rows = await conn.fetch(
+                "SELECT title, description, start_day, start_time, end_day, end_time FROM task ORDER BY task_id"
+            )
+            output = StringIO()
+            writer = csv.writer(output)
+            writer.writerow(['title', 'description', 'start_day', 'start_time', 'end_day', 'end_time'])
+            for row in rows:
+                writer.writerow([
+                    row['title'],
+                    row['description'],
+                    row['start_day'],
+                    row['start_time'],
+                    row['end_day'],
+                    row['end_time']
+                ])
+            return output.getvalue()
+
 @dataclass
 class Assignment:
-    assign_id: Optional[int]
-    task_id: int 
+    assign_id: int
+    task_id: int
     tg_id: int
     assigned_by: int
     assigned_at: datetime
@@ -262,15 +313,10 @@ class Assignment:
     end_day: int
     end_time: str
     status: str
-    notification_scheduled: bool = False  # Флаг для отслеживания запланированных уведомлений
-
-    @staticmethod
+    notification_scheduled: bool = False 
     async def create(pool: asyncpg.Pool, task_id: int, tg_id: int, assigned_by: int,
-                    start_day: int, start_time: str, end_day: int, end_time: str,
-                    status: str = 'assigned') -> 'Assignment':
-        """Create a new assignment"""
+                    start_day: int, start_time: str, end_day: int, end_time: str, status: str = 'assigned') -> 'Assignment':
         assigned_at = datetime.now()
-        
         async with pool.acquire() as conn:
             row = await conn.fetchrow(
                 '''
@@ -284,7 +330,6 @@ class Assignment:
                 task_id, tg_id, assigned_by, assigned_at,
                 start_day, start_time, end_day, end_time, status
             )
-            
             return Assignment(
                 assign_id=row['assign_id'],
                 task_id=row['task_id'],
@@ -538,7 +583,13 @@ class PendingUser:
         
 
 
+@dataclass
 class SpotTask:
+    spot_task_id: int
+    name: str
+    description: str
+    expires_at: datetime
+
     @staticmethod
     async def create(pool, name: str, description: str, expires_at: datetime) -> int:
         async with pool.acquire() as conn:
@@ -566,16 +617,60 @@ class SpotTask:
                 "SELECT * FROM spot_task WHERE expires_at > NOW()"
             )
 
+    @staticmethod
+    async def get_all(pool) -> list["SpotTask"]:
+        async with pool.acquire() as conn:
+            rows = await conn.fetch("SELECT * FROM spot_task ORDER BY expires_at DESC")
+            return [
+                SpotTask(
+                    spot_task_id=row["spot_task_id"],
+                    name=row["name"],
+                    description=row["description"],
+                    expires_at=row["expires_at"],
+                )
+                for row in rows
+            ]
+
+    @staticmethod
+    async def get_by_id(pool, spot_task_id: int) -> "SpotTask":
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow("SELECT * FROM spot_task WHERE spot_task_id = $1", spot_task_id)
+            if row:
+                return SpotTask(
+                    spot_task_id=row["spot_task_id"],
+                    name=row["name"],
+                    description=row["description"],
+                    expires_at=row["expires_at"],
+                )
+            return None
+
+    @staticmethod
+    async def delete(pool, spot_task_id: int) -> bool:
+        logger = logging.getLogger(__name__)
+        async with pool.acquire() as conn:
+            try:
+                result = await conn.execute("DELETE FROM spot_task WHERE spot_task_id = $1", spot_task_id)
+                if result == "DELETE 1":
+                    logger.info(f"SpotTask {spot_task_id} deleted successfully.")
+                    return True
+                else:
+                    logger.warning(f"SpotTask {spot_task_id} not found or not deleted.")
+                    return False
+            except Exception as e:
+                logger.error(f"Error deleting SpotTask {spot_task_id}: {e}")
+                return False
+
+@dataclass
 class SpotTaskResponse:
     @staticmethod
-    async def create(pool, spot_task_id: int, volunteer_id: int, response: str):
+    async def create(pool, spot_task_id: int, volunteer_id: int, response: str, message_id: int):
         async with pool.acquire() as conn:
             await conn.execute(
                 """
-                INSERT INTO spot_task_response (spot_task_id, volunteer_id, response)
-                VALUES ($1, $2, $3)
+                INSERT INTO spot_task_response (spot_task_id, volunteer_id, response, message_id)
+                VALUES ($1, $2, $3, $4)
                 """,
-                spot_task_id, volunteer_id, response
+                spot_task_id, volunteer_id, response, message_id
             )
 
     @staticmethod
@@ -584,4 +679,16 @@ class SpotTaskResponse:
             return await conn.fetch(
                 "SELECT * FROM spot_task_response WHERE spot_task_id = $1",
                 spot_task_id
+            )
+    
+    @staticmethod
+    async def change_response(pool, spot_task_id: int, volunteer_id: int, new_response: str):
+        async with pool.acquire() as conn:
+            await conn.execute(
+                """
+                UPDATE spot_task_response
+                SET response = $1, responded_at = NOW()
+                WHERE spot_task_id = $2 AND volunteer_id = $3
+                """,
+                new_response, spot_task_id, volunteer_id
             )

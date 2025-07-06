@@ -9,13 +9,12 @@ CREATE TABLE IF NOT EXISTS users (
 -- Tasks table with relative dates
 CREATE TABLE IF NOT EXISTS task (
     task_id      SERIAL PRIMARY KEY,
-    title        TEXT    NOT NULL,
+    title        TEXT    NOT NULL UNIQUE,  -- добавьте UNIQUE
     description  TEXT,
     start_day    INTEGER NOT NULL,   -- День мероприятия (1-based)
     start_time   TEXT    NOT NULL,   -- Время в формате HH:MM
     end_day      INTEGER NOT NULL,   -- День мероприятия (1-based)
     end_time     TEXT    NOT NULL,   -- Время в формате HH:MM
-    status       TEXT    NOT NULL,
     created_at   TIMESTAMP NOT NULL,
     updated_at   TIMESTAMP,
     completed_at TIMESTAMP
@@ -33,7 +32,8 @@ CREATE TABLE IF NOT EXISTS assignment (
     end_day      INTEGER NOT NULL,
     end_time     TEXT NOT NULL,
     status       TEXT NOT NULL,
-    notification_scheduled BOOLEAN DEFAULT FALSE
+    notification_scheduled BOOLEAN DEFAULT FALSE,
+    UNIQUE (task_id, tg_id)  -- Prevent duplicate assignments for the same task
 );
 
 -- Audit log table
@@ -67,8 +67,10 @@ CREATE TABLE IF NOT EXISTS spot_task_response (
     response_id    SERIAL PRIMARY KEY,
     spot_task_id   INTEGER NOT NULL REFERENCES spot_task(spot_task_id) ON DELETE CASCADE,
     volunteer_id   BIGINT NOT NULL REFERENCES users(tg_id) ON DELETE CASCADE,
-    response       VARCHAR(16) NOT NULL CHECK (response IN ('accepted', 'declined')),
-    responded_at   TIMESTAMP NOT NULL DEFAULT NOW()
+    response       VARCHAR(16) NOT NULL CHECK (response IN ('accepted', 'declined', 'none')),
+    responded_at   TIMESTAMP NOT NULL DEFAULT NOW(),
+    message_id     INTEGER NOT NULL,  -- Optional message ID for response
+    UNIQUE (spot_task_id, volunteer_id)  -- Prevent duplicate responses
 );
 
 -- Add indexes

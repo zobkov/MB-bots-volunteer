@@ -171,6 +171,7 @@ async def finish_volunteer_selection(
                     pass
                 # Update assignment status to 'cancelled'
                 await Assignment.update_status(pool, assignment.assign_id, 'cancelled')
+            await Assignment.delete_by_task(pool, task_id)
             
             # Notify about update
             await call.message.answer(

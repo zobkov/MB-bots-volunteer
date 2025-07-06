@@ -139,7 +139,7 @@ async def handle_spot_response(call: CallbackQuery, pool, bot):
     response = "accepted" if action == "accept" else "declined"
 
     # Save response to DB
-    await SpotTaskResponse.create(pool, int(spot_task_id), volunteer_id, response)
+    await SpotTaskResponse.change_response(pool, int(spot_task_id), volunteer_id, response)
     await call.answer("Ответ отправлен!")
 
     # Notify all admins

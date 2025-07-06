@@ -1,8 +1,8 @@
 import logging
 from datetime import datetime, timedelta
 from aiogram import Router, F
-from aiogram.types import Message, CallbackQuery
-from aiogram.filters import Command, CommandStart
+from aiogram.types import Message, CallbackQuery, FSInputFile, BufferedInputFile
+from aiogram.filters import Command, CommandStart, StateFilter
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
 from aiogram.exceptions import TelegramBadRequest
@@ -88,11 +88,9 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
         
         # Add volunteers information
         assignments = await Assignment.get_by_task(pool, task.task_id)
-        active_assignments = [a for a in assignments if a.status != 'cancelled']
-        
-        if active_assignments:
+        if assignments:
             text += "👥 Волонтеры:\n"
-            for assignment in active_assignments:
+            for assignment in assignments:
                 volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
                 text += f"  • {volunteer.name} (@{volunteer.tg_username})\n"
         else:
@@ -120,29 +118,6 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
     builder.adjust(1)
     await call.message.edit_text(text, reply_markup=builder.as_markup())
 
-@router.callback_query(lambda c: c.data == "select_day_for_tasks")
-async def show_day_selection(call: CallbackQuery, event_manager: EventTimeManager):
-    builder = InlineKeyboardBuilder()
-    
-    # Add buttons for all event days
-    for day in range(1, event_manager.days_count + 1):
-        builder.button(
-            text=f"День {day}",
-            callback_data=f"show_tasks_day_{day}"
-        )
-    
-    builder.button(
-        text="◀️ Назад",
-        callback_data=NavigationCD(path="main.tasks.list").pack()
-    )
-    
-    builder.adjust(2)  # Two buttons per row
-    
-    await call.message.edit_text(
-        LEXICON_RU['task_list.select_day'],
-        reply_markup=builder.as_markup()
-    )
-
 @router.callback_query(lambda c: c.data.startswith("show_tasks_day_"))
 async def show_tasks_by_day(call: CallbackQuery, pool, event_manager: EventTimeManager):
     day = int(call.data.split("_")[-1])
@@ -164,11 +139,9 @@ async def show_tasks_by_day(call: CallbackQuery, pool, event_manager: EventTimeM
         
         # Add volunteers information
         assignments = await Assignment.get_by_task(pool, task.task_id)
-        active_assignments = [a for a in assignments if a.status != 'cancelled']
-        
-        if active_assignments:
+        if assignments:
             text += "👥 Волонтеры:\n"
-            for assignment in active_assignments:
+            for assignment in assignments:
                 volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
                 text += f"  • {volunteer.name} (@{volunteer.tg_username})\n"
         else:
@@ -222,18 +195,16 @@ async def show_task_details(update: Union[Message, CallbackQuery], callback_data
     text = f"📋 Детали задания:\n\n"
     text += f"Название: {task.title}\n"
     text += f"Описание: {task.description}\n"
-    text += f"Время: {format_task_time(task)}\n"
-    text += f"Статус: {task.status}\n\n"
+    text += f"Время: {format_task_time(task)}\n\n"
 
     # Get and display assigned volunteers
     assignments = await Assignment.get_by_task(pool, task.task_id)
     if assignments:
         text += "👥 Назначенные волонтеры:\n"
         for assignment in assignments:
-            if assignment.status != 'cancelled':  # Show only active assignments
-                volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
-                text += f"• {volunteer.name} (@{volunteer.tg_username})\n"
-                text += f"  🕒 {assignment.start_time}-{assignment.end_time}\n"
+            volunteer = await User.get_by_tg_id(pool, assignment.tg_id)
+            text += f"• {volunteer.name} (@{volunteer.tg_username})\n"
+            text += f"  🕒 {assignment.start_time}-{assignment.end_time}\n"
     else:
         text += "❌ Нет назначенных волонтеров\n"
 
@@ -307,6 +278,9 @@ async def process_spot_task_description(message: Message, state: FSMContext, poo
                 f"⚡️ <b>Срочное задание!</b>\n<b>{name}</b>\n{description}",
                 reply_markup=spot_task_keyboard(spot_task_id)
             )
+
+            await SpotTaskResponse.create(pool, spot_task_id, v.tg_id, "none", msg.message_id)
+
             msgs.append(msg)
         except Exception as e:
             logger.error(f"Error sending message to user {v.tg_username} (id={v.tg_id}): {e}")
@@ -327,6 +301,105 @@ async def process_spot_task_description(message: Message, state: FSMContext, poo
 
     await message.answer(f"Срочное задание отправлено <b>{len(msgs)}</b> волонтерам.")
 
+
+# ---- Spot list
+
+@router.callback_query(NavigationCD.filter(F.path == "main.tasks.spot_list"))
+async def show_spot_tasks_list(call: CallbackQuery, pool):
+    """Показать список срочных (спот) заданий с кнопками"""
+    spot_tasks = await SpotTask.get_all(pool)
+    if not spot_tasks:
+        await call.message.edit_text("Нет срочных заданий.", reply_markup=get_menu_markup("main.tasks"))
+        return
+
+    text = "<b>Список срочных заданий:</b>\n\n"
+    builder = InlineKeyboardBuilder()
+    for spot in spot_tasks:
+        text += f"⚡️ <b>{spot.name}</b>\n"
+        text += f"📝 {spot.description}\n"
+        text += f"⏰ До: {spot.expires_at.strftime('%d.%m %H:%M')}\n"
+        text += f"ID: {spot.spot_task_id}\n\n"
+        builder.button(
+            text=f"{spot.name}",
+            callback_data=f"view_spot_{spot.spot_task_id}"
+        )
+    builder.button(
+        text="◀️ Назад",
+        callback_data=NavigationCD(path="main.tasks").pack()
+    )
+    builder.adjust(1)
+    await call.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+
+@router.callback_query(lambda c: c.data.startswith("view_spot_"))
+async def view_spot_task(call: CallbackQuery, pool, scheduler: AsyncIOScheduler, bot):
+    spot_task_id = int(call.data.split("_")[-1])
+    spot = await SpotTask.get_by_id(pool, spot_task_id)
+    if not spot:
+        await call.answer("Задание не найдено", show_alert=True)
+        return
+
+    # Получаем ответы волонтеров
+    responses = await SpotTaskResponse.get_by_task(pool, spot_task_id)
+    yes_users = []
+    no_users = []
+    for resp in responses:
+        # Используем правильное имя поля volunteer_id
+        user = await User.get_by_tg_id(pool, resp['volunteer_id'])
+        if not user:
+            continue
+        if resp['response'] == "accepted":
+            yes_users.append(f"• {user.name} (@{user.tg_username})")
+        elif resp['response'] == "declined":
+            no_users.append(f"• {user.name} (@{user.tg_username})")
+
+    text = (
+        f"⚡️ <b>{spot.name}</b>\n"
+        f"📝 {spot.description}\n"
+        f"⏰ До: {spot.expires_at.strftime('%d.%m %H:%M')}\n\n"
+        f"<b>Откликнулись (+):</b>\n" + ("\n".join(yes_users) if yes_users else "—") + "\n\n"
+        f"<b>Отказались (–):</b>\n" + ("\n".join(no_users) if no_users else "—")
+    )
+
+    builder = InlineKeyboardBuilder()
+    builder.button(
+        text="❌ Закрыть задание",
+        callback_data=f"close_spot_{spot_task_id}"
+    )
+    builder.button(
+        text="◀️ Назад",
+        callback_data=NavigationCD(path="main.tasks.spot_list").pack()
+    )
+    builder.adjust(1)
+    await call.message.edit_text(text, reply_markup=builder.as_markup(), parse_mode="HTML")
+
+
+@router.callback_query(lambda c: c.data.startswith("close_spot_"))
+async def close_spot_task(call: CallbackQuery, pool, scheduler: AsyncIOScheduler, bot):
+    spot_task_id = int(call.data.split("_")[-1])
+    spot = await SpotTask.get_by_id(pool, spot_task_id)
+    if not spot:
+        await call.answer("Задание не найдено", show_alert=True)
+        return
+
+    # Получаем все ответы, чтобы удалить сообщения
+    responses = await SpotTaskResponse.get_by_task(pool, spot_task_id)
+
+    # Удаляем сообщения и scheduler jobs
+    for resp in responses:
+        volunteer_id = resp['volunteer_id']
+        message_id = resp.get('message_id')
+        if message_id:
+            await delete_spot_message_safe(bot, volunteer_id, message_id)
+        job_id = f"spot_task_{spot_task_id}_{volunteer_id}"
+        try:
+            scheduler.remove_job(job_id)
+        except Exception as e:
+            logger.error(f"Error removing job {job_id}: {e}")
+
+    # Удаляем задание из базы
+    await SpotTask.delete(pool, spot_task_id)
+    await call.message.edit_text("✅ Срочное задание закрыто и удалено.", reply_markup=get_menu_markup("main.tasks.spot_list"))
 
 
 @router.callback_query(NavigationCD.filter())
@@ -366,5 +439,32 @@ async def delete_task(call: CallbackQuery, pool):
         await call.message.edit_text("✅ Задание удалено.")
     else:
         await call.message.edit_text("❌ Ошибка при удалении задания.")
+
+from aiogram.filters import CommandObject
+from aiogram.types import Message, Document
+
+@router.message(Command(commands=['import_tasks']))
+async def import_tasks_command(message: Message, state: FSMContext):
+    await message.answer("Пришлите .csv файл с задачами (первой строкой: title,description,start_day,start_time,end_day,end_time)")
+    await state.set_state("awaiting_csv")
+
+@router.message(StateFilter("awaiting_csv"), lambda m: m.document and m.document.mime_type == "text/csv")
+async def import_tasks_from_csv(message: Message, pool, state: FSMContext):
+    file = await message.bot.get_file(message.document.file_id)
+    file_path = file.file_path
+    csv_bytes = await message.bot.download_file(file_path)
+    csv_content = csv_bytes.read().decode("utf-8")
+
+    await Task.import_from_csv(pool, csv_content)
+    await message.answer("✅ Импорт задач завершён.")
+    await state.clear()
+
+@router.message(Command(commands=['export_tasks']))
+async def export_tasks_to_csv(message: Message, pool):
+    csv_content = await Task.export_to_csv(pool)
+    await message.answer_document(
+        BufferedInputFile(csv_content.encode('utf-8'), filename="tasks_export.csv"),
+        caption="Выгрузка задач"
+    )
 
 

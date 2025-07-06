@@ -9,7 +9,8 @@ admin_menu_structure: dict[str, list[tuple[str, str]]] = {
     "main.tasks": [
         (LEXICON["main.tasks.create_task"],         "main.tasks.create_task"),
         (LEXICON["main.tasks.create_spot_task"],    "main.tasks.create_spot_task"),
-        (LEXICON["main.tasks.list"],                "main.tasks.list")
+        (LEXICON["main.tasks.list"],                "main.tasks.list"),
+        (LEXICON["main.tasks.spot_list"],                "main.tasks.spot_list")
     ],
     "main.volunteers": [
         (LEXICON["main.volunteers.add_volunteer"], "main.volunteers.add_volunteer"),

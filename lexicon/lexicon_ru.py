@@ -40,7 +40,8 @@ LEXICON_RU: dict[str, str] = {
     'vmain.mytasks': "📋 Мои задания:\n\n{tasks}",
     'vmain.mytasks.empty': "У вас пока нет назначенных заданий",
     'vmain.task_details': "📋 Детали задания:\n\n{details}",
-    'main.tasks.create_spot_task': "Создать срочное задание"
+    'main.tasks.create_spot_task': "Создать срочное задание",
+    'main.tasks.spot_list':     "Список срочных"
 }
 
 LEXICON_RU_BUTTONS: dict[str, str] = {
@@ -60,6 +61,7 @@ LEXICON_RU_BUTTONS: dict[str, str] = {
     'main.tasks.list':          "Текущие задания",
     'main.tasks.create_task':   "Создать задание",
     'main.tasks.create_spot_task': "Создать срочное задание",
+    'main.tasks.spot_list':     "Список срочных",
     'main.assignments.create_assignemnt':   "Create an assignment",
     'main.volunteers':          "Волонтеры",
     'main.volunteers.add_volunteer': "Добавить волонтера",
@@ -90,6 +92,7 @@ LEXICON_COMMANDS_RU: dict[str, str] = {
     '/set_debug_time': "/set_debug_time 1 12:30",
     '/debug_status': "Show debug info",
     '/debug_assign': "/debug_assign volunteer_id task_id - Create assignment for testing",
+    '/import_tasks': "send .csv to import tasks and update old ones"
 }
 
 LEXICON_VOLUNTEER_RU: dict[str, str] = {
