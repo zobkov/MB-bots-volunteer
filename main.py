@@ -36,7 +36,7 @@ async def main() -> None:
         logger.critical("Error reading configuration")
         exit(-1)
 
-    logger.debug(f"Loaded EVENT_START_DATE: {config.event.start_date}")
+    logger.info(f"Loaded EVENT_START_DATE: {config.event.start_date}")
     logger.info("Loaded bot configuration")
 
 
@@ -50,7 +50,7 @@ async def main() -> None:
         logger.warning("DEBUG "*100)
         logger.warning("DEBUG MODE IS ON")
 
-    logger.debug(f"Current start date: {start_date.isoformat(" ")} with {days_count} days")
+    logger.info(f"Current start date: {start_date.isoformat(" ")} with {days_count} days")
 
     # Create event time manager
     event_manager = EventTimeManager(
@@ -145,6 +145,7 @@ async def main() -> None:
     dp["scheduler"] = scheduler
 
     await bot.delete_webhook(drop_pending_updates=True)
+    logger.debug("Deleted webhook. All prior updates are dropped")
     await dp.start_polling(bot)
 
 if __name__ == '__main__':

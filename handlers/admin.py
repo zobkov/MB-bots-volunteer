@@ -5,9 +5,13 @@ from aiogram.types import Message, CallbackQuery
 from aiogram.filters import Command, CommandStart
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.fsm.context import FSMContext
+from aiogram.exceptions import TelegramBadRequest
 from typing import Union
 
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
 from states.states import FSMTaskEdit, FSMSpotTask
+from services.spot_cleanup import delete_spot_message
 from lexicon.lexicon_ru import LEXICON_RU, LEXICON_RU_BUTTONS
 from handlers.callbacks import NavigationCD, TaskActionCD
 from keyboards.admin import get_menu_markup, spot_task_keyboard
@@ -20,6 +24,14 @@ from utils.formatting import format_task_time
 logger = logging.getLogger(__name__)
 
 router = Router()
+
+async def delete_spot_message_safe(bot, chat_id, message_id):
+    try:
+        await bot.delete_message(chat_id, message_id)
+    except TelegramBadRequest as e:
+        logger.error(f"Can't delete message {message_id} (chat_id={chat_id}): {e}")
+    except Exception as e:
+        logger.error(f"Can't delete message {message_id} (chat_id={chat_id}): {e}")
 
 @router.message(CommandStart())
 async def proccess_start_admin(message: Message):
@@ -265,7 +277,7 @@ async def process_spot_task_name(message: Message, state: FSMContext):
     await state.set_state(FSMSpotTask.description)
 
 @router.message(FSMSpotTask.description)
-async def process_spot_task_description(message: Message, state: FSMContext, pool, bot, spot_duration, debug):
+async def process_spot_task_description(message: Message, state: FSMContext, pool, bot, spot_duration, debug, scheduler: AsyncIOScheduler):
     data = await state.get_data()
     name = data["name"]
     description = message.text
@@ -299,6 +311,19 @@ async def process_spot_task_description(message: Message, state: FSMContext, poo
         except Exception as e:
             logger.error(f"Error sending message to user {v.tg_username} (id={v.tg_id}): {e}")
             await message.answer(f"Срочное задание не отправлено @{v.tg_username}")
+        
+        try:
+            scheduler.add_job(
+                delete_spot_message,
+                "date",
+                run_date=expires_at,
+                args=[bot.token, v.tg_id, msg.message_id],
+                id=f"spot_task_{spot_task_id}_{v.tg_id}",
+                misfire_grace_time=60
+            )
+        except Exception as e:
+            logger.error(f"Error scheduling message deletion to user {v.tg_username} (id={v.tg_id}): {e}")
+            
 
     await message.answer(f"Срочное задание отправлено <b>{len(msgs)}</b> волонтерам.")
 
