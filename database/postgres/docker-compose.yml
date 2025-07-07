@@ -7,8 +7,8 @@ services:
     ports:
       - "5432:5432"              # прокидываем порт наружу
     environment:
-      POSTGRES_USER: vol_bot
-      POSTGRES_PASSWORD: vol_bot_pass
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
       POSTGRES_DB: vol_bot_db
     volumes:
       - pgdata:/var/lib/postgresql/data
