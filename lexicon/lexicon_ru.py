@@ -95,7 +95,7 @@ LEXICON_RU_BUTTONS: dict[str, str] = {
     'main.sync': "🔄 Синхронизация",
     'main.tasks': "Список заданий",
     'main.volunteers': "Волонтеры",
-    'main.support': "Тех. поддержка",
+    'main.support': "❓ FAQ",
     
     # Tasks buttons
     'task_list': "Задания",
