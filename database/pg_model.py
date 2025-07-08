@@ -86,9 +86,60 @@ class User:
             )
             return [User(**dict(row)) for row in rows]
 
+    @staticmethod
+    async def get_by_username(pool: asyncpg.Pool, tg_username: str) -> Optional['User']:
+        """Get user by Telegram username"""
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow(
+                'SELECT * FROM users WHERE tg_username = $1',
+                tg_username
+            )
+            if row:
+                return User(
+                    tg_id=row['tg_id'],
+                    tg_username=row['tg_username'],
+                    name=row['name'],
+                    role=row['role']
+                )
+        return None
+
+    @staticmethod
+    async def update(pool: asyncpg.Pool, tg_id: int, **kwargs) -> Optional['User']:
+        """Update user fields"""
+        async with pool.acquire() as conn:
+            # Build update query dynamically
+            update_fields = []
+            values = []
+            for idx, (field, value) in enumerate(kwargs.items(), start=1):
+                update_fields.append(f"{field} = ${idx}")
+                values.append(value)
+            
+            if not update_fields:
+                return None
+            
+            # Add tg_id as the last parameter
+            values.append(tg_id)
+            
+            query = f"""
+                UPDATE users 
+                SET {', '.join(update_fields)}
+                WHERE tg_id = ${len(values)}
+                RETURNING *
+            """
+            
+            row = await conn.fetchrow(query, *values)
+            if row:
+                return User(
+                    tg_id=row['tg_id'],
+                    tg_username=row['tg_username'],
+                    name=row['name'],
+                    role=row['role']
+                )
+            return None
+
 @dataclass
 class Task:
-    task_id: Optional[int]
+    task_id: int
     title: str
     description: str
     start_day: int
@@ -179,17 +230,12 @@ class Task:
 
     @staticmethod
     async def update(pool: asyncpg.Pool, task_id: int, **kwargs) -> Optional['Task']:
-        """Update task fields and return updated task"""
+        """Update specific task fields by id"""
         async with pool.acquire() as conn:
             # Build update query dynamically
             update_fields = []
             values = []
             for idx, (field, value) in enumerate(kwargs.items(), start=1):
-                if field in ['start_ts', 'end_ts'] and isinstance(value, str):
-                    try:
-                        value = datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-                    except ValueError:
-                        value = datetime.strptime(value, "%Y-%m-%d %H:%M")
                 update_fields.append(f"{field} = ${idx}")
                 values.append(value)
             
@@ -208,21 +254,44 @@ class Task:
             """
             
             row = await conn.fetchrow(query, *values)
-            
-            if row:
-                return Task(
-                    task_id=row['task_id'],
-                    title=row['title'],
-                    description=row['description'],
-                    start_day=row['start_day'],
-                    start_time=row['start_time'],
-                    end_day=row['end_day'],
-                    end_time=row['end_time'],
-                    created_at=row['created_at'],
-                    updated_at=row['updated_at'],
-                    completed_at=row['completed_at']
-                )
-            return None
+            return Task.from_db_row(row) if row else None
+
+    @staticmethod
+    async def update_from_sheet(pool: asyncpg.Pool, task_id: int, title: str, description: str,
+                              start_day: int, start_time: str, end_day: int, end_time: str) -> Optional['Task']:
+        """Special update method for sheet synchronization"""
+        async with pool.acquire() as conn:
+            row = await conn.fetchrow('''
+                UPDATE task 
+                SET title=$1, description=$2, 
+                    start_day=$3, start_time=$4,
+                    end_day=$5, end_time=$6,
+                    updated_at=NOW()
+                WHERE task_id=$7
+                RETURNING *
+                ''',
+                title, description,
+                start_day, start_time,
+                end_day, end_time,
+                task_id
+            )
+            return Task.from_db_row(row) if row else None
+
+    @classmethod
+    def from_db_row(cls, row) -> 'Task':
+        """Create Task instance from database row"""
+        return cls(
+            task_id=row['task_id'],
+            title=row['title'],
+            description=row['description'],
+            start_day=row['start_day'],
+            start_time=row['start_time'],
+            end_day=row['end_day'],
+            end_time=row['end_time'],
+            created_at=row['created_at'],
+            updated_at=row['updated_at'],
+            completed_at=row['completed_at']
+        )
 
     @staticmethod
     async def delete(pool, task_id: int) -> bool:

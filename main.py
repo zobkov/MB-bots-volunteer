@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import logging.config
+import json
+import os
 from environs import Env
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
@@ -143,6 +145,29 @@ async def main() -> None:
     )
     scheduler.start()
     dp["scheduler"] = scheduler
+
+    
+    # Init googlesheet service with proper error handling
+    try:
+        if isinstance(config.api_cred, str):
+            # Construct path to credentials file in root directory
+            cred_path = os.path.join(os.path.dirname(__file__), config.api_cred)
+            try:
+                with open(cred_path, 'r') as f:
+                    dp["cred"] = json.load(f)
+                logger.info("Successfully loaded Google Sheets credentials from file")
+            except FileNotFoundError:
+                logger.error(f"Credentials file not found: {cred_path}")
+                dp["cred"] = None
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in credentials file: {e}")
+                dp["cred"] = None
+        else:
+            dp["cred"] = config.api_cred
+            
+    except Exception as e:
+        logger.error(f"Failed to load Google Sheets credentials: {e}")
+        dp["cred"] = None
 
     await bot.delete_webhook(drop_pending_updates=True)
     logger.debug("Deleted webhook. All prior updates are dropped")

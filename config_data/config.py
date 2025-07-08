@@ -34,11 +34,12 @@ class Config:
     db: DatabaseConfig
     event: EventConfig
     spot_duration: int
-    debug_auth: bool = False  # Add this parameter
+    api_cred: str
+    debug_auth: bool = False 
 
 def load_config() -> Config:
     env = Env()
-    env.read_env()  # Read environment variables from .env file
+    env.read_env()
 
     return Config(
         tg_bot=TgBot(token=env.str("BOT_TOKEN")),
@@ -55,5 +56,6 @@ def load_config() -> Config:
             debug_mode=env.bool("DEBUG_MODE", False)
         ),
         debug_auth=env.bool("DEBUG_AUTH", False),
-        spot_duration=env.int("SPOT_TASK_EXPIRY_MINUTES", 30)
+        spot_duration=env.int("SPOT_TASK_EXPIRY_MINUTES", 30),
+        api_cred=env.str("API_CRED")
     )

@@ -41,7 +41,21 @@ LEXICON_RU: dict[str, str] = {
     'vmain.mytasks.empty': "У вас пока нет назначенных заданий",
     'vmain.task_details': "📋 Детали задания:\n\n{details}",
     'main.tasks.create_spot_task': "Создать срочное задание",
-    'main.tasks.spot_list':     "Список срочных"
+    'main.tasks.spot_list':     "Список срочных",
+    'main.sync': "Выберите что нужно синхронизировать:",
+    'main.sync.volunteers': "Синхронизация волонтеров:",
+    'main.sync.tasks': "Синхронизация заданий:",
+    'main.sync.assignments': "Синхронизация назначений:",
+    'main.sync.volunteers.to_google': "Выгрузка волонтеров в Google таблицу...",
+    'main.sync.volunteers.from_google': "Загрузка волонтеров из Google таблицы...",
+    
+    # Tasks sync subpaths
+    'main.sync.tasks.to_google': "Выгрузка заданий в Google таблицу...",
+    'main.sync.tasks.from_google': "Загрузка заданий из Google таблицы...",
+    
+    # Assignments sync subpaths
+    'main.sync.assignments.to_google': "Выгрузка назначений в Google таблицу...",
+    'main.sync.assignments.from_google': "Загрузка назначений из Google таблицы..."
 }
 
 LEXICON_RU_BUTTONS: dict[str, str] = {
@@ -80,7 +94,13 @@ LEXICON_RU_BUTTONS: dict[str, str] = {
     'vmain.mytasks.placeholder':    "PALCEHOLDER",
     'vmain.mytasks': "📋 Мои задания",
     'task_details': "👁 Подробнее",
-    'go_back_to_tasks': "◀️ К списку заданий"
+    'go_back_to_tasks': "◀️ К списку заданий",
+    'main.sync': "🔄 Синхронизация",
+    'main.sync.volunteers': "👥 Волонтеры",
+    'main.sync.tasks': "📋 Задания",
+    'main.sync.assignments': "📌 Назначения",
+    'to_google': "⬆️ Выгрузить в Google",
+    'from_google': "⬇️ Загрузить из Google"
 }
 
 LEXICON_COMMANDS_RU: dict[str, str] = {

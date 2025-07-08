@@ -1,3 +1,5 @@
+import requests
+
 import logging
 from datetime import datetime, timedelta
 from aiogram import Router, F
@@ -20,7 +22,7 @@ from database.pg_model import User, Task, Assignment, SpotTask, SpotTaskResponse
 from filters.roles import IsAdmin
 from utils.event_time import EventTimeManager
 from utils.formatting import format_task_time
-
+from services.sheet_sync import sync_db_to_sheet, sync_sheet_to_db, sync_volunteers_db_to_sheet, sync_volunteers_sheet_to_db, sync_assignments_db_to_sheet, sync_assignments_sheet_to_db
 logger = logging.getLogger(__name__)
 
 router = Router()
@@ -402,15 +404,6 @@ async def close_spot_task(call: CallbackQuery, pool, scheduler: AsyncIOScheduler
     await call.message.edit_text("✅ Срочное задание закрыто и удалено.", reply_markup=get_menu_markup("main.tasks.spot_list"))
 
 
-@router.callback_query(NavigationCD.filter())
-async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):
-    new_path = callback_data.path
-    await call.message.edit_text(
-        LEXICON_RU[new_path],
-        parse_mode="HTML",  # <-- Исправлено!
-        reply_markup=get_menu_markup(new_path)
-    )
-
 
 # --- Удаление задания
 
@@ -467,4 +460,195 @@ async def export_tasks_to_csv(message: Message, pool):
         caption="Выгрузка задач"
     )
 
+@router.message(Command(commands=['db_to_google']))
+async def export_tasks_to_sheet(message: Message, pool, cred):
+    if not cred:
+        await message.answer("❌ Google Sheets integration is not configured")
+        return
+    try:
+        result = await sync_db_to_sheet(pool, cred)
+        await message.answer(result)
+    except Exception as e:
+        logger.error(f"Error in export_tasks_to_sheet: {e}")
+        await message.answer(f"❌ Ошибка при экспорте: {str(e)}")
 
+@router.message(Command(commands=['google_to_db']))
+async def import_tasks_from_sheet(message: Message, pool, cred):
+    if not cred:
+        await message.answer("❌ Google Sheets integration is not configured")
+        return
+    try:
+        result = await sync_sheet_to_db(pool, cred)
+        await message.answer(result)
+    except Exception as e:
+        logger.error(f"Error in import_tasks_from_sheet: {e}")
+        await message.answer(f"❌ Ошибка при импорте: {str(e)}")
+
+@router.message(Command(commands=['volunteers_to_google']))
+async def export_volunteers_to_sheet(message: Message, pool, cred):
+    """Export volunteers from DB to Google Sheet"""
+    if not cred:
+        await message.answer("❌ Google Sheets integration is not configured")
+        return
+    try:
+        result = await sync_volunteers_db_to_sheet(pool, cred)
+        await message.answer(result)
+    except Exception as e:
+        logger.error(f"Error in export_volunteers_to_sheet: {e}")
+        await message.answer(f"❌ Ошибка при экспорте: {str(e)}")
+
+@router.message(Command(commands=['volunteers_from_google']))
+async def import_volunteers_from_sheet(message: Message, pool, cred):
+    """Import volunteers from Google Sheet to DB"""
+    if not cred:
+        await message.answer("❌ Google Sheets integration is not configured")
+        return
+    try:
+        result = await sync_volunteers_sheet_to_db(pool, cred)
+        await message.answer(result)
+    except Exception as e:
+        logger.error(f"Error in import_volunteers_from_sheet: {e}")
+        await message.answer(f"❌ Ошибка при импорте: {str(e)}")
+
+@router.message(Command(commands=['assignments_to_google']))
+async def export_assignments_to_sheet(message: Message, pool, cred):
+    """Export assignments from DB to Google Sheet"""
+    if not cred:
+        await message.answer("❌ Google Sheets integration is not configured")
+        return
+    try:
+        result = await sync_assignments_db_to_sheet(pool, cred)
+        await message.answer(result)
+    except Exception as e:
+        logger.error(f"Error in export_assignments_to_google_menu: {e}")
+        await message.answer(f"❌ Ошибка при экспорте: {str(e)}")
+
+@router.message(Command(commands=['assignments_from_google']))
+async def import_assignments_from_sheet(message: Message, pool, cred):
+    """Import assignments from Google Sheet to DB"""
+    if not cred:
+        await message.answer("❌ Google Sheets integration is not configured")
+        return
+    try:
+        result = await sync_assignments_sheet_to_db(pool, cred)
+        await message.answer(result)
+    except Exception as e:
+        logger.error(f"Error in import_assignments_from_google_menu: {e}")
+        await message.answer(f"❌ Ошибка при импорте: {str(e)}")
+
+@router.callback_query(NavigationCD.filter(F.path == "main.sync.volunteers.to_google"))
+async def sync_volunteers_to_google_menu(call: CallbackQuery, pool, cred):
+    if not cred:
+        await call.answer("❌ Google Sheets integration is not configured", show_alert=True)
+        return
+    try:
+        result = await sync_volunteers_db_to_sheet(pool, cred)
+        await call.message.edit_text(
+            f"{result}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.volunteers")
+        )
+    except Exception as e:
+        logger.error(f"Error in sync_volunteers_to_google_menu: {e}")
+        await call.message.edit_text(
+            f"❌ Ошибка при экспорте: {str(e)}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.volunteers")
+        )
+
+@router.callback_query(NavigationCD.filter(F.path == "main.sync.volunteers.from_google"))
+async def sync_volunteers_from_google_menu(call: CallbackQuery, pool, cred):
+    if not cred:
+        await call.answer("❌ Google Sheets integration is not configured", show_alert=True)
+        return
+    try:
+        result = await sync_volunteers_sheet_to_db(pool, cred)
+        await call.message.edit_text(
+            f"{result}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.volunteers")
+        )
+    except Exception as e:
+        logger.error(f"Error in sync_volunteers_from_google_menu: {e}")
+        await call.message.edit_text(
+            f"❌ Ошибка при импорте: {str(e)}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.volunteers")
+        )
+
+@router.callback_query(NavigationCD.filter(F.path == "main.sync.tasks.to_google"))
+async def sync_tasks_to_google_menu(call: CallbackQuery, pool, cred):
+    if not cred:
+        await call.answer("❌ Google Sheets integration is not configured", show_alert=True)
+        return
+    try:
+        result = await sync_db_to_sheet(pool, cred)
+        await call.message.edit_text(
+            f"{result}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.tasks")
+        )
+    except Exception as e:
+        logger.error(f"Error in sync_tasks_to_google_menu: {e}")
+        await call.message.edit_text(
+            f"❌ Ошибка при экспорте: {str(e)}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.tasks")
+        )
+
+@router.callback_query(NavigationCD.filter(F.path == "main.sync.tasks.from_google"))
+async def sync_tasks_from_google_menu(call: CallbackQuery, pool, cred):
+    if not cred:
+        await call.answer("❌ Google Sheets integration is not configured", show_alert=True)
+        return
+    try:
+        result = await sync_sheet_to_db(pool, cred)
+        await call.message.edit_text(
+            f"{result}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.tasks")
+        )
+    except Exception as e:
+        logger.error(f"Error in sync_tasks_from_google_menu: {e}")
+        await call.message.edit_text(
+            f"❌ Ошибка при импорте: {str(e)}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.tasks")
+        )
+
+@router.callback_query(NavigationCD.filter(F.path == "main.sync.assignments.to_google"))
+async def sync_assignments_to_google_menu(call: CallbackQuery, pool, cred):
+    if not cred:
+        await call.answer("❌ Google Sheets integration is not configured", show_alert=True)
+        return
+    try:
+        result = await sync_assignments_db_to_sheet(pool, cred)
+        await call.message.edit_text(
+            f"{result}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.assignments")
+        )
+    except Exception as e:
+        logger.error(f"Error in sync_assignments_to_google_menu: {e}")
+        await call.message.edit_text(
+            f"❌ Ошибка при экспорте: {str(e)}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.assignments")
+        )
+
+@router.callback_query(NavigationCD.filter(F.path == "main.sync.assignments.from_google"))
+async def sync_assignments_from_google_menu(call: CallbackQuery, pool, cred):
+    if not cred:
+        await call.answer("❌ Google Sheets integration is not configured", show_alert=True)
+        return
+    try:
+        result = await sync_assignments_sheet_to_db(pool, cred)
+        await call.message.edit_text(
+            f"{result}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.assignments")
+        )
+    except Exception as e:
+        logger.error(f"Error in sync_assignments_from_google_menu: {e}")
+        await call.message.edit_text(
+            f"❌ Ошибка при импорте: {str(e)}\n\nВыберите действие:",
+            reply_markup=get_menu_markup("main.sync.assignments")
+        )
+
+@router.callback_query(NavigationCD.filter())
+async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):
+    new_path = callback_data.path
+    await call.message.edit_text(
+        LEXICON_RU[new_path],
+        parse_mode="HTML",  # <-- Исправлено!
+        reply_markup=get_menu_markup(new_path)
+    )
