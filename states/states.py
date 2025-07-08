@@ -13,3 +13,7 @@ class FSMTaskEdit(StatesGroup):
 class FSMStartRole(StatesGroup):
     user = State()
     admin = State()
+
+class FSMSpotTask(StatesGroup):
+    name = State()
+    description = State()

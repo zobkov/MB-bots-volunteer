@@ -43,3 +43,10 @@ async def send_menu_message(message: Message | CallbackQuery, path: str) -> Mess
         text=LEXICON_RU.get(path, f"Меню: {path}"),
         reply_markup=get_menu_markup(path)
     )
+
+def spot_task_keyboard(spot_task_id: int):
+    builder = InlineKeyboardBuilder()
+    builder.button(text="✅ Принять", callback_data=f"spot_accept_{spot_task_id}")
+    builder.button(text="❌ Отклонить", callback_data=f"spot_decline_{spot_task_id}")
+    builder.adjust(2)
+    return builder.as_markup()

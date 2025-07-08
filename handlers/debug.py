@@ -22,7 +22,7 @@ async def debug_status(message: Message, event_manager: EventTimeManager):
     await message.answer(
         f"Текущий статус:\n"
         f"{status}\n\n"
-        f"Текущий день мероприятия: <i>{current_day} день<\i>"
+        f"Текущий день мероприятия: <i>{current_day} день</i>\n"
         f"Абсолютное время: {current_time.strftime('%Y-%m-%d %H:%M')}\n"
         f"Debug mode: {'включен' if event_manager.debug_mode else 'выключен'}"
     )
