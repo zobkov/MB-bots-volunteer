@@ -10,6 +10,8 @@ from database.pg_model import User, PendingUser, Assignment, Task
 from lexicon.lexicon_ru import LEXICON_RU_BUTTONS as LEXICON, LEXICON_VOLUNTEER_RU
 from filters.roles import IsAdmin
 from utils.formatting import format_task_time
+from lexicon.lexicon_ru import LEXICON_RU
+from keyboards.admin import get_menu_markup
 
 router = Router()
 
@@ -58,8 +60,13 @@ async def confirm_add_volunteer(call: CallbackQuery, state: FSMContext, pool):
             tg_username=data['username'],
             name=data['name'],
             role='volunteer'
+        ) 
+        await call.message.answer(
+            LEXICON_VOLUNTEER_RU['add.success'] + "\n\n" + LEXICON_RU["main.volunteers"],
+            parse_mode="HTML",
+            reply_markup=get_menu_markup("main.volunteers")
         )
-        await call.message.edit_text(LEXICON_VOLUNTEER_RU['add.success'])
+
     except Exception as e:
         await call.message.edit_text(f"Ошибка при добавлении волонтера: {str(e)}")
     

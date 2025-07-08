@@ -121,15 +121,18 @@ LEXICON_RU_BUTTONS: dict[str, str] = {
     'main.sync.tasks': "📋 Задания",
     'main.sync.assignments': "📌 Назначения",
     'to_google': "⬆️ Выгрузить в Google",
-    'from_google': "⬇️ Загрузить из Google"
+    'from_google': "⬇️ Загрузить из Google",
+
+    'vmain.mytasks': "📋 Мои задания",
+    'vmain.faq': "❓ FAQ",
+    'vmain.mytasks.placeholder': "Нет активных заданий"
 }
 
 # Command descriptions
 LEXICON_COMMANDS_RU: dict[str, str] = {
     '/start': 'Запуск бота',
-    '/help': 'Справка',
+    '/help_admin': 'Справка',
     '/change_roles': 'Переключить admin<->volunteer',
-    '/main_menu': "Главное меню",
     '/add_user': "/add_user {username} {role}",
     '/set_debug_time': "/set_debug_time 1 12:30",
     '/debug_status': "Показать отладочную информацию",

@@ -40,6 +40,11 @@ class Config:
 def load_config() -> Config:
     env = Env()
     env.read_env()
+    
+    logger.debug("Loading environment variables:")
+    logger.debug(f"BOT_TOKEN: {env.str('BOT_TOKEN')}")
+    logger.debug(f"DB_USER: {env.str('DB_USER')}")
+    logger.debug(f"EVENT_START_DATE: {env.str('EVENT_START_DATE')}")
 
     return Config(
         tg_bot=TgBot(token=env.str("BOT_TOKEN")),

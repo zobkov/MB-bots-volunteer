@@ -120,6 +120,36 @@ async def show_tasks_list(call: CallbackQuery, pool, event_manager: EventTimeMan
     builder.adjust(1)
     await call.message.edit_text(text, reply_markup=builder.as_markup())
 
+@router.callback_query(lambda c: c.data == "select_day_for_tasks")
+async def select_day_for_tasks(call: CallbackQuery, event_manager: EventTimeManager):
+    """Show day selection buttons for task filtering"""
+    text = "Выберите день для просмотра заданий:"
+    
+    builder = InlineKeyboardBuilder()
+    
+    # Get the number of days from event configuration
+    days_count = event_manager.days_count
+    
+    # Add buttons for each day of the event
+    for day in range(1, days_count + 1):
+        builder.button(
+            text=f"День {day}",
+            callback_data=f"show_tasks_day_{day}"
+        )
+    
+    builder.button(
+        text="◀️ Назад",
+        callback_data=NavigationCD(path="main.tasks.list").pack()
+    )
+    
+    # Adjust layout - 2 day buttons per row, back button on separate row
+    builder.adjust(2, 1)
+    
+    await call.message.edit_text(text, reply_markup=builder.as_markup())
+
+
+
+
 @router.callback_query(lambda c: c.data.startswith("show_tasks_day_"))
 async def show_tasks_by_day(call: CallbackQuery, pool, event_manager: EventTimeManager):
     day = int(call.data.split("_")[-1])
