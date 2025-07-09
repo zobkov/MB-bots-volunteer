@@ -134,6 +134,7 @@ LEXICON_COMMANDS_RU: dict[str, str] = {
     '/import_tasks': "Отправьте .csv для импорта и обновления заданий",
     '/faq_sync': "Синхронизация FAQ из Google таблицы",
     '/faq_status': "Проверка состояния FAQ",
+    '/faq_config': "Проверка конфига FAQ"
 }
 
 # Volunteer-specific messages

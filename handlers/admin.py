@@ -733,6 +733,37 @@ async def faq_status(message: Message, pool, cred_faq):
         logger.error(f"Error checking FAQ status: {e}")
         await message.answer(f"❌ Ошибка при проверке статуса FAQ: {str(e)}")
 
+@router.message(Command(commands=['faq_config']))
+async def faq_config_status(message: Message, pool, cred_faq, scheduler: AsyncIOScheduler):
+    """Показать конфигурацию FAQ"""
+    try:
+        from config_data.config import load_config
+        config = load_config()
+        
+        # Проверяем состояние scheduler
+        scheduler_job = scheduler.get_job("faq_sync")
+        scheduler_status = "активна" if scheduler_job else "неактивна"
+        
+        # Если есть задача, показываем детали
+        next_run = ""
+        if scheduler_job:
+            next_run = f"\n⏰ Следующий запуск: {scheduler_job.next_run_time.strftime('%d.%m %H:%M:%S')}"
+        
+        status_text = (
+            f"⚙️ Конфигурация FAQ:\n\n"
+            f"🔄 Автосинхронизация: {'включена' if config.faq.auto_sync_enabled else 'отключена'}\n"
+            f"⏱ Интервал: {config.faq.sync_interval_minutes} минут\n"
+            f"📊 Задача в scheduler: {scheduler_status}{next_run}\n"
+            f"🔑 Credentials: {'настроены' if cred_faq else 'не настроены'}\n\n"
+            f"💡 Для изменения настроек отредактируйте config.json и перезапустите бота"
+        )
+        
+        await message.answer(status_text)
+        
+    except Exception as e:
+        logger.error(f"Error checking FAQ config: {e}")
+        await message.answer(f"❌ Ошибка при проверке конфигурации FAQ: {str(e)}")
+
 @router.callback_query(NavigationCD.filter())
 async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):
     new_path = callback_data.path

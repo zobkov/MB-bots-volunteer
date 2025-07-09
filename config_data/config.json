@@ -7,6 +7,9 @@
     "debug": true,
     "debug_config": {
         "debug_auth": true
+    },
+    "faq_config": {
+        "auto_sync_enabled": false,
+        "sync_interval_minutes": 15
     }
-
 }

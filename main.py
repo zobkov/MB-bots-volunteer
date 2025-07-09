@@ -157,18 +157,28 @@ async def main() -> None:
         'port': config.db.port
     }
 
-    # Добавляем задачу в scheduler
-    scheduler.add_job(
-        sync_faq_periodic,
-        "interval",
-        minutes=15,
-        args=[db_config, None],  # Пока передаем None для cred_faq
-        id="faq_sync",
-        replace_existing=True
-    )
-    logger.info("FAQ sync scheduled every 15 minutes")
+    # Управление задачей синхронизации FAQ
+    if config.faq.auto_sync_enabled:
+        # Добавляем или обновляем задачу синхронизации FAQ
+        scheduler.add_job(
+            sync_faq_periodic,
+            "interval",
+            minutes=config.faq.sync_interval_minutes,
+            args=[db_config, None],  # Пока передаем None для cred_faq
+            id="faq_sync",
+            replace_existing=True
+        )
+        logger.info(f"FAQ auto-sync scheduled every {config.faq.sync_interval_minutes} minutes")
+    else:
+        # Удаляем задачу если она существует и автосинхронизация отключена
+        try:
+            if scheduler.get_job("faq_sync"):
+                scheduler.remove_job("faq_sync")
+                logger.info("Removed existing FAQ sync job (auto-sync disabled)")
+        except Exception as e:
+            logger.debug(f"No existing FAQ sync job to remove: {e}")
+        logger.info("FAQ auto-sync disabled in config")
 
-    
     # Init googlesheet service with proper error handling ––– ADMIN
     try:
         if isinstance(config.api_cred_admin, str):
@@ -198,12 +208,13 @@ async def main() -> None:
                     dp["cred_faq"] = json.load(f)
                 logger.info("Successfully loaded FAQ Google Sheets credentials from file")
                 
-                # Обновляем задачу с правильными credentials
-                scheduler.modify_job(
-                    "faq_sync",
-                    args=[db_config, dp["cred_faq"]]
-                )
-                logger.info("Updated FAQ sync job with credentials")
+                # Обновляем задачу с правильными credentials только если авто-синхронизация включена
+                if config.faq.auto_sync_enabled:
+                    scheduler.modify_job(
+                        "faq_sync",
+                        args=[db_config, dp["cred_faq"]]
+                    )
+                    logger.info("Updated FAQ sync job with credentials")
                 
             except FileNotFoundError:
                 logger.error(f"FAQ credentials file not found: {cred_path}")
@@ -213,8 +224,8 @@ async def main() -> None:
                 dp["cred_faq"] = None
         else:
             dp["cred_faq"] = config.api_cred_faq
-            if dp["cred_faq"]:
-                # Обновляем задачу с правильными credentials
+            if dp["cred_faq"] and config.faq.auto_sync_enabled:
+                # Обновляем задачу с правильными credentials только если авто-синхронизация включена
                 scheduler.modify_job(
                     "faq_sync",
                     args=[db_config, dp["cred_faq"]]

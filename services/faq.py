@@ -76,15 +76,21 @@ class FAQService:
                     except ValueError:
                         weight_int = 0
                     
-                    # Обрабатываем дату
-                    updated_date = None
+                    # Обрабатываем дату - если нет даты или она некорректная, используем сегодняшнюю
+                    updated_date = datetime.now().date()
                     if updated_at:
                         try:
                             updated_date = datetime.strptime(updated_at, '%Y-%m-%d').date()
                         except ValueError:
-                            updated_date = datetime.now().date()
-                    else:
-                        updated_date = datetime.now().date()
+                            try:
+                                # Пробуем другие форматы даты
+                                updated_date = datetime.strptime(updated_at, '%d.%m.%Y').date()
+                            except ValueError:
+                                # Если не получается распарсить, используем текущую дату
+                                updated_date = datetime.now().date()
+                    
+                    # Форматируем дату для записи в таблицу
+                    date_str = updated_date.strftime('%Y-%m-%d')
                     
                     if not id_val:
                         # Новый вопрос - создаем UUID и добавляем в БД
@@ -95,29 +101,50 @@ class FAQService:
                             answer, keywords, updated_date, weight_int, notes
                         )
                         
-                        # Записываем UUID обратно в таблицу
-                        range_name = f'{FAQ_SHEET_NAME}!A{row_idx}'
+                        # Записываем UUID и дату обратно в таблицу
+                        id_range = f'{FAQ_SHEET_NAME}!A{row_idx}'
+                        date_range = f'{FAQ_SHEET_NAME}!G{row_idx}'
+                        
+                        # Обновляем ID
                         service.spreadsheets().values().update(
                             spreadsheetId=FAQ_SPREADSHEET_ID,
-                            range=range_name,
+                            range=id_range,
                             valueInputOption='RAW',
                             body={'values': [[new_id]]}
+                        ).execute()
+                        
+                        # Обновляем дату
+                        service.spreadsheets().values().update(
+                            spreadsheetId=FAQ_SPREADSHEET_ID,
+                            range=date_range,
+                            valueInputOption='RAW',
+                            body={'values': [[date_str]]}
                         ).execute()
                         
                         new_questions += 1
                         logger.info(f"Created new FAQ entry with ID: {new_id}")
                         
                     else:
-                        # Есть ID - создаем запись с этим ID (но проверяем, что ID уникальный)
+                        # Есть ID - создаем запись с этим ID
                         try:
                             await self._create_faq_entry(
                                 id_val, is_active, category, question,
                                 answer, keywords, updated_date, weight_int, notes
                             )
+                            
+                            # Обновляем дату синхронизации в таблице
+                            date_range = f'{FAQ_SHEET_NAME}!G{row_idx}'
+                            service.spreadsheets().values().update(
+                                spreadsheetId=FAQ_SPREADSHEET_ID,
+                                range=date_range,
+                                valueInputOption='RAW',
+                                body={'values': [[date_str]]}
+                            ).execute()
+                            
                             recreated_questions += 1
                             logger.info(f"Recreated FAQ entry with existing ID: {id_val}")
                         except Exception as e:
-                            # Если не получается создать с существующим ID (возможно дубликат), создаем новый
+                            # Если не получается создать с существующим ID, создаем новый
                             logger.warning(f"Failed to create FAQ with existing ID {id_val}, creating new: {e}")
                             new_id = str(uuid.uuid4())
                             
@@ -126,13 +153,24 @@ class FAQService:
                                 answer, keywords, updated_date, weight_int, notes
                             )
                             
-                            # Записываем новый UUID в таблицу
-                            range_name = f'{FAQ_SHEET_NAME}!A{row_idx}'
+                            # Записываем новый UUID и дату в таблицу
+                            id_range = f'{FAQ_SHEET_NAME}!A{row_idx}'
+                            date_range = f'{FAQ_SHEET_NAME}!G{row_idx}'
+                            
+                            # Обновляем ID
                             service.spreadsheets().values().update(
                                 spreadsheetId=FAQ_SPREADSHEET_ID,
-                                range=range_name,
+                                range=id_range,
                                 valueInputOption='RAW',
                                 body={'values': [[new_id]]}
+                            ).execute()
+                            
+                            # Обновляем дату
+                            service.spreadsheets().values().update(
+                                spreadsheetId=FAQ_SPREADSHEET_ID,
+                                range=date_range,
+                                valueInputOption='RAW',
+                                body={'values': [[date_str]]}
                             ).execute()
                             
                             new_questions += 1
@@ -151,7 +189,7 @@ class FAQService:
             if updated_questions > 0:
                 result_parts.append(f"{updated_questions} обновлено")
             if recreated_questions > 0:
-                result_parts.append(f"{recreated_questions} синхронизированно")
+                result_parts.append(f"{recreated_questions} синхронизировано")
             
             if result_parts:
                 return f"✅ FAQ синхронизация завершена: {', '.join(result_parts)}"
