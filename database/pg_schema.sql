@@ -73,8 +73,26 @@ CREATE TABLE IF NOT EXISTS spot_task_response (
     UNIQUE (spot_task_id, volunteer_id)  -- Prevent duplicate responses
 );
 
+-- FAQ table
+CREATE TABLE IF NOT EXISTS faq (
+  id UUID PRIMARY KEY,
+  active BOOLEAN NOT NULL DEFAULT TRUE,
+  category TEXT NOT NULL,
+  question TEXT NOT NULL,
+  answer TEXT NOT NULL,
+  keywords TEXT,
+  updated_at DATE,
+  weight INTEGER NOT NULL DEFAULT 0,
+  notes TEXT
+);
+
+
+
+
+
 -- Add indexes
 CREATE INDEX IF NOT EXISTS idx_task_status ON task(status);
 CREATE INDEX IF NOT EXISTS idx_assignment_status ON assignment(status);
 CREATE INDEX IF NOT EXISTS idx_assignment_tg_id ON assignment(tg_id);
 CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp ON audit_log(timestamp);
+CREATE INDEX IF NOT EXISTS faq_question_idx ON faq USING gin (to_tsvector('russian', question || ' ' || coalesce(keywords, '')));

@@ -19,6 +19,8 @@ from utils.logger.logging_settings import logging_config
 from database.pg_model import create_pool  
 from middleware.registration import RoleAssigmmentMiddleware
 from utils.event_time import EventTimeManager
+from services.faq import FAQService
+from utils.periodic_tasks import sync_faq_periodic
 
 logging.config.dictConfig(logging_config)
 logger = logging.getLogger(__name__)
@@ -146,12 +148,31 @@ async def main() -> None:
     scheduler.start()
     dp["scheduler"] = scheduler
 
+    # Подготавливаем конфигурацию БД для задач
+    db_config = {
+        'user': config.db.user,
+        'password': config.db.password,
+        'database': config.db.database,
+        'host': config.db.host,
+        'port': config.db.port
+    }
+
+    # Добавляем задачу в scheduler
+    scheduler.add_job(
+        sync_faq_periodic,
+        "interval",
+        minutes=15,
+        args=[db_config, None],  # Пока передаем None для cred_faq
+        id="faq_sync",
+        replace_existing=True
+    )
+    logger.info("FAQ sync scheduled every 15 minutes")
+
     
-    # Init googlesheet service with proper error handling
+    # Init googlesheet service with proper error handling ––– ADMIN
     try:
-        if isinstance(config.api_cred, str):
-            # Construct path to credentials file in root directory
-            cred_path = os.path.join(os.path.dirname(__file__), config.api_cred)
+        if isinstance(config.api_cred_admin, str):
+            cred_path = os.path.join(os.path.dirname(__file__), config.api_cred_admin)
             try:
                 with open(cred_path, 'r') as f:
                     dp["cred"] = json.load(f)
@@ -163,11 +184,45 @@ async def main() -> None:
                 logger.error(f"Invalid JSON in credentials file: {e}")
                 dp["cred"] = None
         else:
-            dp["cred"] = config.api_cred
-            
+            dp["cred"] = config.api_cred_admin
     except Exception as e:
-        logger.error(f"Failed to load Google Sheets credentials: {e}")
+        logger.critical(f"Failed to load Google Sheets credentials: {e}")
         dp["cred"] = None
+
+    # Init googlesheet service with proper error handling ––– FAQ
+    try:
+        if isinstance(config.api_cred_faq, str):
+            cred_path = os.path.join(os.path.dirname(__file__), config.api_cred_faq)
+            try:
+                with open(cred_path, 'r') as f:
+                    dp["cred_faq"] = json.load(f)
+                logger.info("Successfully loaded FAQ Google Sheets credentials from file")
+                
+                # Обновляем задачу с правильными credentials
+                scheduler.modify_job(
+                    "faq_sync",
+                    args=[db_config, dp["cred_faq"]]
+                )
+                logger.info("Updated FAQ sync job with credentials")
+                
+            except FileNotFoundError:
+                logger.error(f"FAQ credentials file not found: {cred_path}")
+                dp["cred_faq"] = None
+            except json.JSONDecodeError as e:
+                logger.error(f"Invalid JSON in FAQ credentials file: {e}")
+                dp["cred_faq"] = None
+        else:
+            dp["cred_faq"] = config.api_cred_faq
+            if dp["cred_faq"]:
+                # Обновляем задачу с правильными credentials
+                scheduler.modify_job(
+                    "faq_sync",
+                    args=[db_config, dp["cred_faq"]]
+                )
+                logger.info("Updated FAQ sync job with credentials")
+    except Exception as e:
+        logger.critical(f"Failed to load FAQ Google Sheets credentials: {e}")
+        dp["cred_faq"] = None
 
     await bot.delete_webhook(drop_pending_updates=True)
     logger.debug("Deleted webhook. All prior updates are dropped")

@@ -23,6 +23,7 @@ from filters.roles import IsAdmin
 from utils.event_time import EventTimeManager
 from utils.formatting import format_task_time
 from services.sheet_sync import sync_db_to_sheet, sync_sheet_to_db, sync_volunteers_db_to_sheet, sync_volunteers_sheet_to_db, sync_assignments_db_to_sheet, sync_assignments_sheet_to_db
+from services.faq import FAQService, get_faq_sheets_service
 logger = logging.getLogger(__name__)
 
 router = Router()
@@ -673,6 +674,64 @@ async def sync_assignments_from_google_menu(call: CallbackQuery, pool, cred):
             f"❌ Ошибка при импорте: {str(e)}\n\nВыберите действие:",
             reply_markup=get_menu_markup("main.sync.assignments")
         )
+
+@router.message(Command(commands=['faq_sync']))
+async def sync_faq_manual(message: Message, pool, cred_faq):
+    """Ручная синхронизация FAQ из Google таблицы"""
+    await message.answer("Работаю...")
+    if not cred_faq:
+        await message.answer("❌ FAQ Google Sheets integration is not configured")
+        return
+    try:
+        faq_service = FAQService(pool, cred_faq)
+        result = await faq_service.sync_faq_from_google()
+        await message.answer(result)
+    except Exception as e:
+        logger.error(f"Error in manual FAQ sync: {e}")
+        await message.answer(f"❌ Ошибка при синхронизации FAQ: {str(e)}")
+
+@router.message(Command(commands=['faq_status']))
+async def faq_status(message: Message, pool, cred_faq):
+    """Проверка состояния FAQ"""
+    try:
+        if not cred_faq:
+            await message.answer("❌ FAQ Google Sheets integration is not configured")
+            return
+            
+        # Проверяем количество записей в БД
+        async with pool.acquire() as conn:
+            db_count = await conn.fetchval("SELECT COUNT(*) FROM faq")
+            active_count = await conn.fetchval("SELECT COUNT(*) FROM faq WHERE active = true")
+        
+        # Проверяем Google таблицу
+        faq_service = FAQService(pool, cred_faq)
+        service = get_faq_sheets_service(cred_faq)  # Используем функцию напрямую
+        
+        # Получаем константы из модуля
+        from services.faq import FAQ_SPREADSHEET_ID, FAQ_SHEET_NAME, FAQ_RANGE
+        
+        result = service.spreadsheets().values().get(
+            spreadsheetId=FAQ_SPREADSHEET_ID,
+            range=FAQ_RANGE
+        ).execute()
+        
+        google_rows = result.get('values', [])
+        google_count = len([row for row in google_rows if len(row) >= 4 and row[3] and row[4]])  # question and answer not empty
+        
+        status_text = (
+            f"📊 Статус FAQ:\n\n"
+            f"🗃 База данных: {db_count} записей ({active_count} активных)\n"
+            f"📋 Google таблица: {google_count} записей\n"
+            f"🔗 Spreadsheet ID: {FAQ_SPREADSHEET_ID}\n"
+            f"📄 Лист: {FAQ_SHEET_NAME}\n"
+            f"📍 Диапазон: {FAQ_RANGE}"
+        )
+        
+        await message.answer(status_text)
+        
+    except Exception as e:
+        logger.error(f"Error checking FAQ status: {e}")
+        await message.answer(f"❌ Ошибка при проверке статуса FAQ: {str(e)}")
 
 @router.callback_query(NavigationCD.filter())
 async def navigate_menu(call: CallbackQuery, callback_data: NavigationCD):

@@ -35,7 +35,8 @@ class Config:
     db: DatabaseConfig
     event: EventConfig
     spot_duration: int
-    api_cred: str
+    api_cred_admin: str
+    api_cred_faq: str
     debug_auth: bool = False 
 
 def load_config() -> Config:
@@ -67,5 +68,6 @@ def load_config() -> Config:
         ),
         debug_auth=json_config.get("debug_config", {}).get("debug_auth", False),
         spot_duration=json_config["event_config"]["spot_duration"],
-        api_cred=env.str("API_CRED")
+        api_cred_admin=env.str("API_CRED_ADMIN"),
+        api_cred_faq=env.str("API_CRED_FAQ")
     )
