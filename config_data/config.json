@@ -1,0 +1,12 @@
+{
+    "event_config": {
+        "start_date": "2025-07-08",
+        "days_count": 5,
+        "spot_duration": 30
+    },
+    "debug": true,
+    "debug_config": {
+        "debug_auth": true
+    }
+
+}
